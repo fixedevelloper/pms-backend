@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: pms-modulith
+
+  profiles:
+    active: dev
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  jackson:
+    default-property-inclusion: non_null
+    # pms-frontend was built assuming a Laravel-style snake_case wire format
+    # (request bodies like {first_name, check_in, room_ids} and it reads
+    # response fields the same way) — matching that here means the frontend
+    # doesn't need a translation layer for every field name.
+    property-naming-strategy: SNAKE_CASE
+
+server:
+  port: 8081
+  error:
+    include-message: always
+
+pms:
+  security:
+    jwt:
+      # Same secret as monokek-spring's app.jwt.secret (see monokek-spring/.env's JWT_SECRET) —
+      # monokek-spring is the identity service that issues the tokens this app only validates,
+      # so both defaults must match for a token minted by one to be accepted by the other.
+      secret: ${JWT_SECRET:QA7PIo9RokhOSvgyDXKpMayBqwwBduHZM51pQKFp}
+      expiration-minutes: 480
+  channel-manager:
+    webhook-token: ${CHANNEL_MANAGER_WEBHOOK_TOKEN:change-this-webhook-secret}
+  cors:
+    # Comma-separated. Covers the pms-frontend Next.js dev server and its packaged Tauri
+    # desktop build's fixed webview origin (Linux/macOS vs Windows spell it differently).
+    # Override with PMS_CORS_ALLOWED_ORIGINS for a production web deployment.
+    allowed-origins: ${PMS_CORS_ALLOWED_ORIGINS:http://localhost:3001,tauri://localhost,http://tauri.localhost,https://tauri.localhost}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    # Same MySQL server/user as monokek-spring's dev defaults, separate database.
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_DATABASE:pms}?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:base}
+    password: ${DB_PASSWORD:ba001133}
+
+logging:
+  level:
+    org.springframework.modulith: DEBUG
+    com.pms.hotel: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/pms}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:pms}
+    password: ${DB_PASSWORD:pms}
