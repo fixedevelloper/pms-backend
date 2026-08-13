@@ -4,6 +4,7 @@ import com.pms.hotel.housekeeping.internal.HousekeepingService;
 import com.pms.hotel.housekeeping.internal.HousekeepingTask;
 import com.pms.hotel.housekeeping.internal.HousekeepingTaskRepository;
 import com.pms.hotel.housekeeping.internal.web.HousekeepingRequests.CreateTaskRequest;
+import com.pms.hotel.housekeeping.internal.web.HousekeepingRequests.UpdateTaskPriorityRequest;
 import com.pms.hotel.housekeeping.internal.web.HousekeepingRequests.UpdateTaskStatusRequest;
 import com.pms.hotel.room.RoomApi;
 import com.pms.hotel.shared.security.CurrentUser;
@@ -47,7 +48,8 @@ class HousekeepingController {
     @PostMapping("/tasks")
     @ResponseStatus(HttpStatus.CREATED)
     public HousekeepingTaskView store(@Valid @RequestBody CreateTaskRequest request) {
-        HousekeepingTask task = housekeepingService.create(request.roomId(), request.taskType(), request.assignedTo(), request.notes());
+        HousekeepingTask task = housekeepingService.create(
+                request.roomId(), request.taskType(), request.priority(), request.assignedTo(), request.notes());
         return toView(task);
     }
 
@@ -63,10 +65,17 @@ class HousekeepingController {
         return toView(task);
     }
 
+    @PatchMapping("/tasks/{id}/priority")
+    public HousekeepingTaskView updateTaskPriority(@PathVariable Long id, @Valid @RequestBody UpdateTaskPriorityRequest request) {
+        HousekeepingTask task = housekeepingService.updatePriority(id, request.priority());
+        return toView(task);
+    }
+
     private HousekeepingTaskView toView(HousekeepingTask task) {
         String roomNumber = roomApi.getById(task.getRoomId()).roomNumber();
+        java.time.Instant checkoutAt = housekeepingService.resolveCheckoutAt(task.getRoomId());
         return new HousekeepingTaskView(
-                task.getId(), task.getRoomId(), roomNumber, task.getTaskType(),
-                task.getStatus(), task.getAssignedTo(), task.getNotes(), task.getCreatedAt());
+                task.getId(), task.getRoomId(), roomNumber, task.getTaskType(), task.getPriority(),
+                task.getStatus(), task.getAssignedTo(), task.getNotes(), checkoutAt, task.getCreatedAt());
     }
 }

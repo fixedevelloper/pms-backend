@@ -16,9 +16,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("""
             select b from Booking b
             where (:status is null or b.status = :status)
+                and (:guestId is null or b.guestId = :guestId)
             order by b.createdAt desc
             """)
-    Page<Booking> search(@Param("status") String status, Pageable pageable);
+    Page<Booking> search(@Param("status") String status, @Param("guestId") Long guestId, Pageable pageable);
 
     @Query("""
             select b from Booking b
@@ -33,6 +34,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                 and b.status in ('confirmed', 'checked_in', 'checked_out')
             """)
     List<Booking> findDepartures(@Param("date") java.time.LocalDate date);
+
+    /** Réservations dont la date d'arrivée prévue est passée sans check-in — candidates au no-show du night audit. */
+    @Query("""
+            select b from Booking b
+            where b.status in ('pending', 'confirmed')
+                and cast(b.checkedInAt as date) <= :date
+            """)
+    List<Booking> findNoShowCandidates(@Param("date") java.time.LocalDate date);
 
     @Query("""
             select sum(b.totalAmount) from Booking b

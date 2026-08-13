@@ -1,8 +1,10 @@
 package com.pms.hotel.housekeeping.internal;
 
+import com.pms.hotel.booking.BookingApi;
 import com.pms.hotel.room.RoomApi;
 import com.pms.hotel.room.RoomStatuses;
 import com.pms.hotel.shared.exception.ResourceNotFoundException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -18,11 +20,13 @@ public class HousekeepingService {
 
     private final HousekeepingTaskRepository taskRepository;
     private final RoomApi roomApi;
+    private final BookingApi bookingApi;
 
-    public HousekeepingTask create(Long roomId, String taskType, Long assignedTo, String notes) {
+    public HousekeepingTask create(Long roomId, String taskType, String priority, Long assignedTo, String notes) {
         HousekeepingTask task = new HousekeepingTask();
         task.setRoomId(roomId);
         task.setTaskType(taskType);
+        task.setPriority(priority != null ? priority : HousekeepingTask.NORMAL);
         task.setAssignedTo(assignedTo);
         task.setNotes(notes);
         task = taskRepository.save(task);
@@ -51,6 +55,20 @@ public class HousekeepingService {
         }
 
         return task;
+    }
+
+    public HousekeepingTask updatePriority(Long taskId, String priority) {
+        HousekeepingTask task = findEntity(taskId);
+        task.setPriority(priority);
+        return taskRepository.save(task);
+    }
+
+    /** Départ prévu du séjour actuellement en cours dans la chambre, si occupée — pour donner du contexte de priorisation au personnel d'étage. */
+    @Transactional(readOnly = true)
+    public Instant resolveCheckoutAt(Long roomId) {
+        return bookingApi.findActiveCheckedInStay(roomId)
+                .map(stay -> bookingApi.getById(stay.bookingId()).checkedOutAt())
+                .orElse(null);
     }
 
     @Transactional(readOnly = true)

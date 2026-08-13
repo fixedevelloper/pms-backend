@@ -20,6 +20,7 @@ public final class BillingViews {
             BigDecimal totalAmount,
             BigDecimal amountPaid,
             BigDecimal taxAmount,
+            BigDecimal cityTaxAmount,
             BigDecimal discountAmount,
             String status,
             List<InvoiceItemView> items,
@@ -48,5 +49,19 @@ public final class BillingViews {
             List<ExtraChargeLine> extraCharges,
             InvoiceView invoice,
             List<PaymentView> payments) {
+    }
+
+    /**
+     * Une ligne de la main courante (guest ledger) — "room_charge"|"extra_charge"|
+     * "tax"|"payment". Les paiements sont négatifs (réduisent le solde dû),
+     * runningBalance est le solde cumulé après cette ligne, triée par date.
+     */
+    public record LedgerEntry(
+            String type,
+            String description,
+            BigDecimal amount,
+            Instant date,
+            String roomNumber,
+            BigDecimal runningBalance) {
     }
 }

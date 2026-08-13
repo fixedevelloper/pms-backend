@@ -13,6 +13,15 @@ public record BookingCreateCommand(
         Instant checkIn,
         Instant checkOut,
         String source,
-        List<Long> roomIds,
+        String guaranteeType,
+        BigDecimal depositAmount,
+        List<RoomAllocation> rooms,
         BigDecimal totalAmount) {
+
+    public record RoomAllocation(
+            Long roomId, Long ratePlanId, Integer adultsCount, Integer childrenCount, List<OccupantInput> occupants) {
+    }
+
+    public record OccupantInput(String firstName, String lastName, String passportNumber) {
+    }
 }

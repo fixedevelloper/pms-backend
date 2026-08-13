@@ -1,0 +1,13 @@
+package com.pms.hotel.maintenance.internal;
+
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface MaintenanceTicketRepository extends JpaRepository<MaintenanceTicket, Long> {
+
+    List<MaintenanceTicket> findByStatusOrderByCreatedAtDesc(String status);
+
+    List<MaintenanceTicket> findByRoomIdOrderByCreatedAtDesc(Long roomId);
+
+    List<MaintenanceTicket> findAllByOrderByCreatedAtDesc();
+}

@@ -1,22 +1,37 @@
 package com.pms.hotel.room.internal;
 
 import com.pms.hotel.room.RoomApi;
+import com.pms.hotel.room.RoomAvailabilityChangedEvent;
+import com.pms.hotel.room.RoomBlockView;
 import com.pms.hotel.room.RoomDetails;
 import com.pms.hotel.room.RoomOccupancyStats;
 import com.pms.hotel.room.RoomStatuses;
+import com.pms.hotel.shared.exception.BusinessRuleException;
 import com.pms.hotel.shared.exception.ResourceNotFoundException;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
-class RoomService implements RoomApi {
+public class RoomService implements RoomApi {
 
     private final RoomRepository roomRepository;
     private final RoomStatusLogRepository roomStatusLogRepository;
+    private final RoomBlockRepository roomBlockRepository;
+    private final ApplicationEventPublisher events;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomDetails> findAll() {
+        return roomRepository.findAll(Sort.by("roomNumber")).stream().map(Room::toSummary).toList();
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -40,6 +55,19 @@ class RoomService implements RoomApi {
 
     @Override
     public RoomDetails updateStatus(Long roomId, String status, Long updatedByUserId, String note) {
+        return updateStatusWithChecklist(roomId, status, updatedByUserId, note, false, false, false);
+    }
+
+    /**
+     * Comme {@link #updateStatus}, mais persiste en plus la check-list qualité
+     * (linge/salle de bain/minibar) sur le RoomStatusLog — jusqu'ici construite
+     * côté frontend (HousekeepingRoomsGrid) puis jetée après usage, jamais
+     * envoyée à l'API. Réservé au contrôleur du module room (pas exposé sur
+     * RoomApi : aucun autre module n'a besoin de poser une check-list).
+     */
+    public RoomDetails updateStatusWithChecklist(
+            Long roomId, String status, Long updatedByUserId, String note,
+            boolean linenChecked, boolean bathroomChecked, boolean minibarChecked) {
         Room room = findEntity(roomId);
         boolean changed = !status.equals(room.getStatus());
         room.setStatus(status);
@@ -51,6 +79,9 @@ class RoomService implements RoomApi {
             log.setStatus(status);
             log.setNote(note != null ? note : "Changement d'état automatique ou manuel.");
             log.setUpdatedBy(updatedByUserId);
+            log.setLinenChecked(linenChecked);
+            log.setBathroomChecked(bathroomChecked);
+            log.setMinibarChecked(minibarChecked);
             roomStatusLogRepository.save(log);
         }
 
@@ -60,10 +91,62 @@ class RoomService implements RoomApi {
     @Override
     @Transactional(readOnly = true)
     public RoomOccupancyStats occupancyStats() {
-        long total = roomRepository.count();
+        List<Long> blockedRoomIds = roomBlockRepository.findBlockedRoomIds(LocalDate.now());
+        long total = roomRepository.count() - blockedRoomIds.size();
         long occupied = roomRepository.countByStatus(RoomStatuses.OCCUPIED);
-        long available = roomRepository.countByStatus(RoomStatuses.AVAILABLE);
+        long available = blockedRoomIds.isEmpty()
+                ? roomRepository.countByStatus(RoomStatuses.AVAILABLE)
+                : roomRepository.countByStatusAndIdNotIn(RoomStatuses.AVAILABLE, blockedRoomIds);
         return new RoomOccupancyStats(total, occupied, available);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isBlocked(Long roomId, LocalDate checkIn, LocalDate checkOut) {
+        return roomBlockRepository.existsOverlap(roomId, checkIn, checkOut);
+    }
+
+    /** Réservé au module room (contrôleur) : liste des blocages d'une chambre, du plus récent au plus ancien. */
+    @Transactional(readOnly = true)
+    public List<RoomBlockView> listBlocksForRoom(Long roomId) {
+        return roomBlockRepository.findByRoomIdOrderByStartDateDesc(roomId).stream().map(RoomBlock::toView).toList();
+    }
+
+    /** Tous les blocages, tous établissements confondus (pas de multi-propriété) — pour une vue d'ensemble. */
+    @Transactional(readOnly = true)
+    public List<RoomBlockView> listAllBlocks() {
+        return roomBlockRepository.findAllByOrderByStartDateDesc().stream().map(RoomBlock::toView).toList();
+    }
+
+    public RoomBlockView createBlock(Long roomId, LocalDate startDate, LocalDate endDate, String reason, String notes) {
+        if (!endDate.isAfter(startDate)) {
+            throw new BusinessRuleException("La date de fin doit être postérieure à la date de début.");
+        }
+        if (roomBlockRepository.existsOverlap(roomId, startDate, endDate)) {
+            throw new BusinessRuleException("Cette chambre a déjà un blocage sur une période qui chevauche ces dates.");
+        }
+        Room room = findEntity(roomId);
+        RoomBlock block = new RoomBlock();
+        block.setRoom(room);
+        block.setStartDate(startDate);
+        block.setEndDate(endDate);
+        block.setReason(reason);
+        block.setNotes(notes);
+        RoomBlockView view = roomBlockRepository.save(block).toView();
+        events.publishEvent(new RoomAvailabilityChangedEvent(roomId, startDate, endDate, "blocked"));
+        return view;
+    }
+
+    public void releaseBlock(Long roomId, Long blockId) {
+        RoomBlock block = roomBlockRepository.findById(blockId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Blocage", blockId));
+        if (!block.getRoom().getId().equals(roomId)) {
+            throw new ResourceNotFoundException("Ce blocage n'appartient pas à la chambre indiquée.");
+        }
+        LocalDate startDate = block.getStartDate();
+        LocalDate endDate = block.getEndDate();
+        roomBlockRepository.delete(block);
+        events.publishEvent(new RoomAvailabilityChangedEvent(roomId, startDate, endDate, "unblocked"));
     }
 
     Room findEntity(Long id) {

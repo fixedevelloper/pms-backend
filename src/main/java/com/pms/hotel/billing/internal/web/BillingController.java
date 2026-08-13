@@ -3,11 +3,13 @@ package com.pms.hotel.billing.internal.web;
 import com.pms.hotel.billing.internal.BillingService;
 import com.pms.hotel.billing.internal.BillingViews.BookingBillingView;
 import com.pms.hotel.billing.internal.BillingViews.InvoiceView;
+import com.pms.hotel.billing.internal.BillingViews.LedgerEntry;
 import com.pms.hotel.billing.internal.BillingViews.PaymentView;
 import com.pms.hotel.billing.internal.web.BillingRequests.RecordPaymentForBookingRequest;
 import com.pms.hotel.billing.internal.web.BillingRequests.RecordPaymentRequest;
 import com.pms.hotel.shared.web.PageResponse;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -46,6 +48,11 @@ class BillingController {
     @GetMapping("/bookings/{bookingId}/billing")
     public BookingBillingView billing(@PathVariable Long bookingId) {
         return billingService.getBookingBillingView(bookingId);
+    }
+
+    @GetMapping("/bookings/{bookingId}/ledger")
+    public List<LedgerEntry> ledger(@PathVariable Long bookingId) {
+        return billingService.guestLedger(bookingId);
     }
 
     @PostMapping("/payments")

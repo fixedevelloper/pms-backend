@@ -2,8 +2,11 @@ package com.pms.hotel.reporting.internal.web;
 
 import com.pms.hotel.reporting.internal.ReportingService;
 import com.pms.hotel.reporting.internal.ReportingViews.DashboardStats;
+import com.pms.hotel.reporting.internal.ReportingViews.OccupancyForecastPoint;
+import com.pms.hotel.reporting.internal.ReportingViews.PoliceRegisterEntry;
 import com.pms.hotel.reporting.internal.ReportingViews.RevenueReport;
 import java.time.LocalDate;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,5 +33,24 @@ class ReportingController {
         LocalDate resolvedEnd = end != null ? end : LocalDate.now();
         LocalDate resolvedStart = start != null ? start : resolvedEnd.minusDays(30);
         return reportingService.revenueReport(resolvedStart, resolvedEnd);
+    }
+
+    // URL inchangée (le frontend l'appelle déjà ainsi) — seul l'emplacement du
+    // controller a bougé, de room vers reporting, pour casser un cycle de modules.
+    @GetMapping("/rooms/occupancy")
+    public List<RoomOccupancyView> roomOccupancy() {
+        return reportingService.roomOccupancy();
+    }
+
+    @GetMapping("/reports/police-register")
+    public List<PoliceRegisterEntry> policeRegister(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return reportingService.policeRegister(date != null ? date : LocalDate.now());
+    }
+
+    @GetMapping("/reports/occupancy-forecast")
+    public List<OccupancyForecastPoint> occupancyForecast(@RequestParam(defaultValue = "30") int days) {
+        LocalDate today = LocalDate.now();
+        return reportingService.occupancyForecast(today, today.plusDays(Math.max(1, days)));
     }
 }

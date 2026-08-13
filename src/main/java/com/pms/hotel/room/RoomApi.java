@@ -1,5 +1,7 @@
 package com.pms.hotel.room;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -8,6 +10,9 @@ import java.util.Optional;
  * exposes), never on {@code com.pms.hotel.room.internal} types.
  */
 public interface RoomApi {
+
+    /** All rooms, ordered by room number. */
+    List<RoomDetails> findAll();
 
     RoomDetails getById(Long roomId);
 
@@ -24,4 +29,7 @@ public interface RoomApi {
     RoomDetails updateStatus(Long roomId, String status, Long updatedByUserId, String note);
 
     RoomOccupancyStats occupancyStats();
+
+    /** True si la chambre a un blocage hors-vente (maintenance/rénovation/usage interne) chevauchant [checkIn, checkOut). */
+    boolean isBlocked(Long roomId, LocalDate checkIn, LocalDate checkOut);
 }

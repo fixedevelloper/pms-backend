@@ -19,11 +19,19 @@ public class HousekeepingTask extends BaseEntity {
     public static final String IN_PROGRESS = "in_progress";
     public static final String COMPLETED = "completed";
 
+    public static final String LOW = "low";
+    public static final String NORMAL = "normal";
+    public static final String HIGH = "high";
+    public static final String URGENT = "urgent";
+
     @Column(name = "room_id", nullable = false)
     private Long roomId;
 
     @Column(name = "task_type", nullable = false)
     private String taskType;
+
+    @Column(nullable = false)
+    private String priority = NORMAL;
 
     @Column(nullable = false)
     private String status = PENDING;

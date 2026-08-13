@@ -62,6 +62,6 @@ public class ExtraCharge extends BaseEntity {
     }
 
     public ExtraChargeLine toLine() {
-        return new ExtraChargeLine(getId(), bookingId, department, itemName, quantity, unitPrice, totalPrice, paymentStatus);
+        return new ExtraChargeLine(getId(), bookingId, department, itemName, quantity, unitPrice, totalPrice, paymentStatus, getCreatedAt());
     }
 }

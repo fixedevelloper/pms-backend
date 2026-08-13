@@ -29,4 +29,14 @@ public class RoomStatusLog extends BaseEntity {
 
     @Column(name = "updated_by")
     private Long updatedBy;
+
+    /** Check-list qualité renseignée par le personnel d'étage lors du passage à "available" (voir HousekeepingRoomsGrid côté frontend). */
+    @Column(name = "linen_checked", nullable = false)
+    private boolean linenChecked = false;
+
+    @Column(name = "bathroom_checked", nullable = false)
+    private boolean bathroomChecked = false;
+
+    @Column(name = "minibar_checked", nullable = false)
+    private boolean minibarChecked = false;
 }

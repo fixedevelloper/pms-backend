@@ -1,5 +1,6 @@
 package com.pms.hotel.room.internal;
 
+import java.util.Collection;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -12,4 +13,6 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     boolean existsByRoomNumber(String roomNumber);
 
     long countByStatus(String status);
+
+    long countByStatusAndIdNotIn(String status, Collection<Long> ids);
 }

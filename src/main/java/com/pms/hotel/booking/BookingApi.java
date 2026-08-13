@@ -35,4 +35,20 @@ public interface BookingApi {
     BigDecimal sumRevenueForStatusCreatedBetween(String status, Instant from, Instant to);
 
     List<DailyRevenuePoint> revenueByCheckoutDateBetween(LocalDate start, LocalDate end);
+
+    /** Réservations dont l'arrivée (checkedInAt) tombe le {@code date} donné — utilisé par le registre de police/immigration. */
+    List<BookingSummary> findArrivalsOn(LocalDate date);
+
+    /** Séjours actifs (hors annulés/no-show) chevauchant [from, to) — utilisé par la prévision d'occupation. */
+    List<RoomStayInterval> findRoomStaysOverlapping(LocalDate from, LocalDate to);
+
+    /** Réservations attendues le {@code onOrBeforeDate} (ou avant) qui n'ont jamais été enregistrées — utilisé par le night audit. */
+    List<BookingSummary> findNoShowCandidates(LocalDate onOrBeforeDate);
+
+    /**
+     * Marque une réservation no-show et calcule le frais applicable (même
+     * logique que l'annulation — un no-show est traité comme une annulation
+     * à délai nul). Idempotent : ne recalcule pas le frais si déjà posé.
+     */
+    BookingSummary markNoShow(Long bookingId);
 }

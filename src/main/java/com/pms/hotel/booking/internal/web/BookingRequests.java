@@ -1,5 +1,6 @@
 package com.pms.hotel.booking.internal.web;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.FutureOrPresent;
@@ -25,8 +26,24 @@ public final class BookingRequests {
             @NotNull @FutureOrPresent LocalDate checkIn,
             @NotNull LocalDate checkOut,
             @NotBlank String source,
-            @NotEmpty List<Long> roomIds,
+            @Pattern(regexp = "none|credit_card|deposit|company") String guaranteeType,
+            @DecimalMin("0") BigDecimal depositAmount,
+            @NotEmpty @Valid List<RoomAllocation> rooms,
             @NotNull @DecimalMin("0") BigDecimal totalAmount) {
+
+        public record RoomAllocation(
+                @NotNull Long roomId,
+                @NotNull Long ratePlanId,
+                @jakarta.validation.constraints.Min(1) Integer adultsCount,
+                @jakarta.validation.constraints.Min(0) Integer childrenCount,
+                @Valid List<OccupantRequest> occupants) {
+        }
+
+        public record OccupantRequest(
+                @NotBlank String firstName,
+                @NotBlank String lastName,
+                String passportNumber) {
+        }
     }
 
     public record UpdateReservationStatusRequest(

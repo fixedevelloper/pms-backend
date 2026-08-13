@@ -10,8 +10,10 @@ import com.pms.hotel.booking.internal.web.BookingRequests.CreateBookingRequest;
 import com.pms.hotel.booking.internal.web.BookingRequests.UpdateReservationStatusRequest;
 import com.pms.hotel.shared.web.PageResponse;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -36,10 +38,11 @@ class BookingController {
     @GetMapping("/bookings")
     public PageResponse<BookingSummary> index(
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long guestId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size) {
         Pageable pageable = Pageable.ofSize(size).withPage(page);
-        return PageResponse.of(bookingRepository.search(status, pageable), bookingService::toSummary);
+        return PageResponse.of(bookingRepository.search(status, guestId, pageable), bookingService::toSummary);
     }
 
     @PostMapping("/bookings")
@@ -54,7 +57,19 @@ class BookingController {
                 request.checkIn().atStartOfDay().toInstant(ZoneOffset.UTC),
                 request.checkOut().atStartOfDay().toInstant(ZoneOffset.UTC),
                 request.source(),
-                request.roomIds(),
+                request.guaranteeType() != null ? request.guaranteeType() : Booking.GUARANTEE_NONE,
+                request.depositAmount() != null ? request.depositAmount() : BigDecimal.ZERO,
+                request.rooms().stream()
+                        .map(r -> new BookingCreateCommand.RoomAllocation(
+                                r.roomId(), r.ratePlanId(),
+                                r.adultsCount() != null ? r.adultsCount() : 1,
+                                r.childrenCount() != null ? r.childrenCount() : 0,
+                                r.occupants() != null
+                                        ? r.occupants().stream()
+                                                .map(o -> new BookingCreateCommand.OccupantInput(o.firstName(), o.lastName(), o.passportNumber()))
+                                                .toList()
+                                        : List.of()))
+                        .toList(),
                 request.totalAmount());
         return bookingService.create(command);
     }

@@ -1,6 +1,7 @@
 package com.pms.hotel.booking.internal;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -27,4 +28,13 @@ public interface BookingRoomRepository extends JpaRepository<BookingRoom, Long> 
                 and br.booking.checkedOutAt >= :now
             """)
     Optional<Booking> findActiveCheckedInBookingForRoom(@Param("roomId") Long roomId, @Param("now") Instant now);
+
+    /** Séjours actifs (hors annulés/no-show) chevauchant [from, to) — pour la prévision d'occupation. */
+    @Query("""
+            select br from BookingRoom br
+            where br.booking.status not in ('cancelled', 'no_show')
+                and br.booking.checkedInAt < :to
+                and br.booking.checkedOutAt > :from
+            """)
+    List<BookingRoom> findOverlapping(@Param("from") Instant from, @Param("to") Instant to);
 }

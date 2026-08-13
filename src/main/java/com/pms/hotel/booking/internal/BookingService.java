@@ -2,24 +2,35 @@ package com.pms.hotel.booking.internal;
 
 import com.pms.hotel.booking.ActiveStay;
 import com.pms.hotel.booking.BookingApi;
+import com.pms.hotel.booking.BookingAvailabilityChangedEvent;
+import com.pms.hotel.booking.BookingDepositCollectedEvent;
 import com.pms.hotel.booking.BookingRoomLine;
 import com.pms.hotel.booking.BookingSummary;
 import com.pms.hotel.booking.DailyRevenuePoint;
 import com.pms.hotel.booking.ExternalBookingUpsert;
+import com.pms.hotel.booking.RoomOccupant;
+import com.pms.hotel.booking.RoomStayInterval;
 import com.pms.hotel.guest.GuestApi;
 import com.pms.hotel.guest.GuestSummary;
 import com.pms.hotel.guest.GuestUpsertRequest;
+import com.pms.hotel.rateplan.RatePlanApi;
+import com.pms.hotel.rateplan.RatePlanSummary;
 import com.pms.hotel.room.RoomApi;
 import com.pms.hotel.room.RoomDetails;
 import com.pms.hotel.room.RoomOccupancyStats;
 import com.pms.hotel.shared.exception.BusinessRuleException;
 import com.pms.hotel.shared.exception.ResourceNotFoundException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +43,8 @@ public class BookingService implements BookingApi {
     private final BookingRoomRepository bookingRoomRepository;
     private final GuestApi guestApi;
     private final RoomApi roomApi;
+    private final RatePlanApi ratePlanApi;
+    private final ApplicationEventPublisher events;
 
     @Override
     @Transactional(readOnly = true)
@@ -58,12 +71,21 @@ public class BookingService implements BookingApi {
         GuestSummary guest = guestApi.findOrCreateByPhone(new GuestUpsertRequest(
                 command.firstName(), command.lastName(), command.email(), command.phone(), command.passportNumber()));
 
-        for (Long roomId : command.roomIds()) {
-            if (bookingRoomRepository.existsOverlap(roomId, command.checkIn(), command.checkOut())) {
-                RoomDetails room = roomApi.getById(roomId);
+        LocalDate checkInDate = command.checkIn().atZone(ZoneOffset.UTC).toLocalDate();
+        LocalDate checkOutDate = command.checkOut().atZone(ZoneOffset.UTC).toLocalDate();
+
+        for (BookingCreateCommand.RoomAllocation allocation : command.rooms()) {
+            if (bookingRoomRepository.existsOverlap(allocation.roomId(), command.checkIn(), command.checkOut())) {
+                RoomDetails room = roomApi.getById(allocation.roomId());
                 throw new BusinessRuleException(
                         "La chambre numéro " + room.roomNumber() + " est déjà réservée pour ces dates.",
                         Map.of("room_ids", List.of("La chambre numéro " + room.roomNumber() + " est déjà réservée pour ces dates.")));
+            }
+            if (roomApi.isBlocked(allocation.roomId(), checkInDate, checkOutDate)) {
+                RoomDetails room = roomApi.getById(allocation.roomId());
+                throw new BusinessRuleException(
+                        "La chambre numéro " + room.roomNumber() + " est bloquée (hors-vente) pour ces dates.",
+                        Map.of("room_ids", List.of("La chambre numéro " + room.roomNumber() + " est bloquée (hors-vente) pour ces dates.")));
             }
         }
 
@@ -73,18 +95,43 @@ public class BookingService implements BookingApi {
         booking.setCheckedOutAt(command.checkOut());
         booking.setStatus(Booking.CONFIRMED);
         booking.setSource(command.source());
+        booking.setGuaranteeType(command.guaranteeType());
+        booking.setDepositAmount(command.depositAmount());
         booking.setTotalAmount(command.totalAmount());
         booking = bookingRepository.save(booking);
 
-        for (Long roomId : command.roomIds()) {
-            RoomDetails room = roomApi.getById(roomId);
+        // Le prix par nuit vient du rate plan choisi, pas d'un prix de base statique
+        // (RoomType#basePrice n'est plus utilisé qu'en absence de rate plan applicable).
+        for (BookingCreateCommand.RoomAllocation allocation : command.rooms()) {
+            RatePlanSummary ratePlan = ratePlanApi.getById(allocation.ratePlanId());
             BookingRoom bookingRoom = new BookingRoom();
             bookingRoom.setBooking(booking);
-            bookingRoom.setRoomId(roomId);
-            bookingRoom.setPricePerNight(room.basePricePerNight());
+            bookingRoom.setRoomId(allocation.roomId());
+            bookingRoom.setRatePlanId(allocation.ratePlanId());
+            bookingRoom.setPricePerNight(ratePlan.pricePerNight());
+            bookingRoom.setAdultsCount(allocation.adultsCount() != null ? allocation.adultsCount() : 1);
+            bookingRoom.setChildrenCount(allocation.childrenCount() != null ? allocation.childrenCount() : 0);
+            if (allocation.occupants() != null) {
+                for (BookingCreateCommand.OccupantInput occupantInput : allocation.occupants()) {
+                    BookingRoomOccupant occupant = new BookingRoomOccupant();
+                    occupant.setBookingRoom(bookingRoom);
+                    occupant.setFirstName(occupantInput.firstName());
+                    occupant.setLastName(occupantInput.lastName());
+                    occupant.setPassportNumber(occupantInput.passportNumber());
+                    bookingRoom.getOccupants().add(occupant);
+                }
+            }
             booking.getRooms().add(bookingRoom);
         }
         booking = bookingRepository.save(booking);
+
+        if (command.depositAmount() != null && command.depositAmount().signum() > 0) {
+            events.publishEvent(new BookingDepositCollectedEvent(booking.getId(), command.depositAmount()));
+        }
+
+        for (BookingCreateCommand.RoomAllocation allocation : command.rooms()) {
+            events.publishEvent(new BookingAvailabilityChangedEvent(allocation.roomId(), checkInDate, checkOutDate, "booking_created"));
+        }
 
         return toSummary(booking);
     }
@@ -97,14 +144,113 @@ public class BookingService implements BookingApi {
                     "Impossible de faire le check-out d'un client qui n'est pas encore enregistré (checked_in).");
         }
 
+        if (status.equals(Booking.CANCELLED)
+                && List.of(Booking.CHECKED_IN, Booking.CHECKED_OUT).contains(booking.getStatus())) {
+            throw new BusinessRuleException("Impossible d'annuler un séjour déjà en cours ou terminé.");
+        }
+
         if (status.equals(Booking.CHECKED_IN)) {
             booking.setCheckedInAt(java.time.Instant.now());
         } else if (status.equals(Booking.CHECKED_OUT)) {
             booking.setCheckedOutAt(java.time.Instant.now());
+        } else if (status.equals(Booking.CANCELLED) && booking.getCancellationFeeAmount() == null) {
+            booking.setCancellationFeeAmount(computeCancellationFee(booking));
         }
 
         booking.setStatus(status);
+        BookingSummary summary = toSummary(bookingRepository.save(booking));
+
+        if (status.equals(Booking.CANCELLED)) {
+            LocalDate checkInDate = booking.getCheckedInAt().atZone(ZoneOffset.UTC).toLocalDate();
+            LocalDate checkOutDate = booking.getCheckedOutAt().atZone(ZoneOffset.UTC).toLocalDate();
+            for (BookingRoom room : booking.getRooms()) {
+                events.publishEvent(new BookingAvailabilityChangedEvent(room.getRoomId(), checkInDate, checkOutDate, "booking_cancelled"));
+            }
+        }
+
+        return summary;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingSummary> findNoShowCandidates(LocalDate onOrBeforeDate) {
+        return bookingRepository.findNoShowCandidates(onOrBeforeDate).stream().map(this::toSummary).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingSummary> findArrivalsOn(LocalDate date) {
+        return bookingRepository.findArrivals(date).stream().map(this::toSummary).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomStayInterval> findRoomStaysOverlapping(LocalDate from, LocalDate to) {
+        Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant toInstant = to.atStartOfDay(ZoneOffset.UTC).toInstant();
+        return bookingRoomRepository.findOverlapping(fromInstant, toInstant).stream()
+                .map(br -> new RoomStayInterval(br.getRoomId(), br.getBooking().getCheckedInAt(), br.getBooking().getCheckedOutAt()))
+                .toList();
+    }
+
+    @Override
+    public BookingSummary markNoShow(Long bookingId) {
+        Booking booking = findEntity(bookingId);
+        if (!List.of(Booking.PENDING, Booking.CONFIRMED).contains(booking.getStatus())) {
+            throw new BusinessRuleException(
+                    "Seule une réservation en attente ou confirmée peut être marquée no-show (statut actuel : " + booking.getStatus() + ").");
+        }
+
+        // Même calcul que l'annulation : un no-show est une annulation à délai
+        // nul, ChronoUnit.DAYS.between(now, checkedInAt) y sera négatif ou nul,
+        // donc toujours hors délai gratuit pour une politique flexible.
+        if (booking.getCancellationFeeAmount() == null) {
+            booking.setCancellationFeeAmount(computeCancellationFee(booking));
+        }
+        booking.setStatus(Booking.NO_SHOW);
         return toSummary(bookingRepository.save(booking));
+    }
+
+    /**
+     * Additionne, par chambre, ce que la politique d'annulation de son rate
+     * plan autorise à retenir : intégral pour non_refundable, le pourcentage
+     * défini pour partial_refund, et pour flexible seulement ce qui dépasse
+     * le délai gratuit — plafonné au dépôt réellement perçu, faute de
+     * passerelle de paiement pour prélever davantage sans moyen enregistré.
+     * Jamais plus que la valeur totale de la réservation.
+     */
+    private BigDecimal computeCancellationFee(Booking booking) {
+        long stayNights = Math.max(1, ChronoUnit.DAYS.between(booking.getCheckedInAt(), booking.getCheckedOutAt()));
+        long daysUntilCheckIn = ChronoUnit.DAYS.between(Instant.now(), booking.getCheckedInAt());
+
+        BigDecimal enforceableFee = BigDecimal.ZERO;
+        BigDecimal lateFlexibleExposure = BigDecimal.ZERO;
+
+        for (BookingRoom room : booking.getRooms()) {
+            if (room.getRatePlanId() == null) continue; // pas de politique connue (réservation historique / channel manager)
+            RatePlanSummary plan = ratePlanApi.getById(room.getRatePlanId());
+            BigDecimal roomTotal = room.getPricePerNight().multiply(BigDecimal.valueOf(stayNights));
+
+            switch (plan.cancellationPolicy()) {
+                case "non_refundable" -> enforceableFee = enforceableFee.add(roomTotal);
+                case "partial_refund" -> {
+                    BigDecimal percent = plan.cancellationFeePercent() != null ? plan.cancellationFeePercent() : BigDecimal.ZERO;
+                    enforceableFee = enforceableFee.add(
+                            roomTotal.multiply(percent).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
+                }
+                case "flexible" -> {
+                    Integer freeDays = plan.freeCancellationDays();
+                    boolean withinFreeWindow = freeDays != null && daysUntilCheckIn >= freeDays;
+                    if (!withinFreeWindow) {
+                        lateFlexibleExposure = lateFlexibleExposure.add(roomTotal);
+                    }
+                }
+                default -> { }
+            }
+        }
+
+        BigDecimal depositForfeit = booking.getDepositAmount().min(lateFlexibleExposure);
+        return enforceableFee.add(depositForfeit).min(booking.getTotalAmount());
     }
 
     @Override
@@ -209,7 +355,15 @@ public class BookingService implements BookingApi {
 
     public BookingSummary toSummary(Booking booking) {
         List<BookingRoomLine> rooms = booking.getRooms().stream()
-                .map(br -> new BookingRoomLine(br.getRoomId(), roomApi.getById(br.getRoomId()).roomNumber(), br.getPricePerNight()))
+                .map(br -> {
+                    String ratePlanName = br.getRatePlanId() != null ? ratePlanApi.getById(br.getRatePlanId()).name() : null;
+                    List<RoomOccupant> occupants = br.getOccupants().stream()
+                            .map(o -> new RoomOccupant(o.getFirstName(), o.getLastName(), o.getPassportNumber()))
+                            .toList();
+                    return new BookingRoomLine(
+                            br.getRoomId(), roomApi.getById(br.getRoomId()).roomNumber(), br.getPricePerNight(),
+                            br.getRatePlanId(), ratePlanName, br.getAdultsCount(), br.getChildrenCount(), occupants);
+                })
                 .toList();
 
         return new BookingSummary(
@@ -217,6 +371,9 @@ public class BookingService implements BookingApi {
                 booking.getGuestId(),
                 booking.getStatus(),
                 booking.getSource(),
+                booking.getGuaranteeType(),
+                booking.getDepositAmount(),
+                booking.getCancellationFeeAmount(),
                 booking.getExternalReference(),
                 booking.getCheckedInAt(),
                 booking.getCheckedOutAt(),

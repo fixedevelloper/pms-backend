@@ -7,8 +7,11 @@ public record HousekeepingTaskView(
         Long roomId,
         String roomNumber,
         String taskType,
+        String priority,
         String status,
         Long assignedTo,
         String notes,
+        /** Départ prévu du séjour en cours dans la chambre, si occupée — null sinon (voir HousekeepingService#resolveCheckoutAt). */
+        Instant roomCheckoutAt,
         Instant createdAt) {
 }

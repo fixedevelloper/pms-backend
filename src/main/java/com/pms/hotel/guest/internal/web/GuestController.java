@@ -61,6 +61,20 @@ class GuestController {
         guest.setEmail(request.email());
         guest.setPhone(request.phone());
         guest.setPassportNumber(request.passportNumber());
+        guest.setDateOfBirth(request.dateOfBirth());
+        guest.setNationality(request.nationality());
+        guest.setAddress(request.address());
+        guest.setIdDocumentType(request.idDocumentType());
+        guest.setIdDocumentNumber(request.idDocumentNumber());
+        guest.setIdDocumentExpiry(request.idDocumentExpiry());
+        guest.setPreferredFloor(request.preferredFloor());
+        guest.setPreferredBedding(request.preferredBedding());
+        guest.setAllergies(request.allergies());
+        guest.setVip(request.vip());
+        guest.setInternalNotes(request.internalNotes());
+        guest.setMarketingConsent(request.marketingConsent());
+        guest.setBlacklisted(request.blacklisted());
+        guest.setBlacklistReason(request.blacklistReason());
         return guestRepository.save(guest).toSummary();
     }
 
@@ -72,6 +86,20 @@ class GuestController {
         if (request.email() != null) guest.setEmail(request.email());
         if (request.phone() != null) guest.setPhone(request.phone());
         if (request.passportNumber() != null) guest.setPassportNumber(request.passportNumber());
+        if (request.dateOfBirth() != null) guest.setDateOfBirth(request.dateOfBirth());
+        if (request.nationality() != null) guest.setNationality(request.nationality());
+        if (request.address() != null) guest.setAddress(request.address());
+        if (request.idDocumentType() != null) guest.setIdDocumentType(request.idDocumentType());
+        if (request.idDocumentNumber() != null) guest.setIdDocumentNumber(request.idDocumentNumber());
+        if (request.idDocumentExpiry() != null) guest.setIdDocumentExpiry(request.idDocumentExpiry());
+        if (request.preferredFloor() != null) guest.setPreferredFloor(request.preferredFloor());
+        if (request.preferredBedding() != null) guest.setPreferredBedding(request.preferredBedding());
+        if (request.allergies() != null) guest.setAllergies(request.allergies());
+        if (request.vip() != null) guest.setVip(request.vip());
+        if (request.internalNotes() != null) guest.setInternalNotes(request.internalNotes());
+        if (request.marketingConsent() != null) guest.setMarketingConsent(request.marketingConsent());
+        if (request.blacklisted() != null) guest.setBlacklisted(request.blacklisted());
+        if (request.blacklistReason() != null) guest.setBlacklistReason(request.blacklistReason());
         return ResponseEntity.ok(guestRepository.save(guest).toSummary());
     }
 

@@ -46,6 +46,9 @@ public class Invoice extends BaseEntity {
     @Column(name = "tax_amount", nullable = false)
     private BigDecimal taxAmount = BigDecimal.ZERO;
 
+    @Column(name = "city_tax_amount", nullable = false)
+    private BigDecimal cityTaxAmount = BigDecimal.ZERO;
+
     @Column(name = "discount_amount", nullable = false)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 

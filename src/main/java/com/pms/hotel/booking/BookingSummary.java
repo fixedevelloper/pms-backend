@@ -9,6 +9,10 @@ public record BookingSummary(
         Long guestId,
         String status,
         String source,
+        String guaranteeType,
+        BigDecimal depositAmount,
+        /** Non-null seulement après une annulation effective — voir BookingService#computeCancellationFee. */
+        BigDecimal cancellationFeeAmount,
         String externalReference,
         Instant checkedInAt,
         Instant checkedOutAt,
