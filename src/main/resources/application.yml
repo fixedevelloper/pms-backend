@@ -38,6 +38,9 @@ pms:
       # config referencing monokek-spring, so monokek-spring being down never affects
       # pms-modulith's ability to validate an already-issued or newly-minted token.
       jwk-set-uri: ${IDENTITY_JWK_SET_URI:http://localhost:8082/oauth2/jwks}
+      # Must match monokek-identity's own app.identity.issuer exactly — checked against
+      # every token's "iss" claim (see SecurityConfig.jwtDecoder), not just used as a label.
+      issuer: ${IDENTITY_ISSUER:http://localhost:8082}
   channel-manager:
     webhook-token: ${CHANNEL_MANAGER_WEBHOOK_TOKEN:change-this-webhook-secret}
   cors:

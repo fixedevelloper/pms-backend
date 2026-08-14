@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -31,6 +32,9 @@ public class SecurityConfig {
 
     @Value("${pms.security.jwt.jwk-set-uri}")
     private String jwkSetUri;
+
+    @Value("${pms.security.jwt.issuer}")
+    private String issuer;
 
     @Value("${pms.cors.allowed-origins}")
     private List<String> corsAllowedOrigins;
@@ -75,6 +79,12 @@ public class SecurityConfig {
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        // Signature-only validation would accept any token signed by a key in this JWKS
+        // document, regardless of which issuer it claims to be — checking "iss" against
+        // our own configured value is what actually makes the issuer setting a security
+        // property instead of just a label.
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
+        return decoder;
     }
 }
