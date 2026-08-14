@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,12 +14,13 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     Optional<Booking> findByExternalReference(String externalReference);
 
+    @EntityGraph(attributePaths = {"rooms"})
     @Query("""
-            select b from Booking b
-            where (:status is null or b.status = :status)
-                and (:guestId is null or b.guestId = :guestId)
-            order by b.createdAt desc
-            """)
+    select b from Booking b
+    where (:status is null or b.status = :status)
+        and (:guestId is null or b.guestId = :guestId)
+    order by b.createdAt desc
+    """)
     Page<Booking> search(@Param("status") String status, @Param("guestId") Long guestId, Pageable pageable);
 
     @Query("""
