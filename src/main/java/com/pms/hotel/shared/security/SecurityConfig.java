@@ -1,7 +1,6 @@
 package com.pms.hotel.shared.security;
 
 import java.util.List;
-import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,17 +17,20 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
- * This service never issues tokens: authentication is delegated to an
- * external identity service. Here we only validate the JWTs it issues
- * (shared HMAC secret) and translate their claims into authorities.
+ * This service never issues tokens: authentication is delegated to monokek-identity,
+ * a standalone OAuth2/OIDC Authorization Server. We only validate the JWTs it issues
+ * (against its published JWKS, refreshed/cached by NimbusJwtDecoder — a brief outage
+ * of monokek-identity doesn't break validation of already-cached keys) and translate
+ * their claims into authorities. Nothing in this file, or anywhere else in this
+ * service, references monokek-spring: a monokek-spring outage has zero effect here.
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    @Value("${pms.security.jwt.secret}")
-    private String jwtSecret;
+    @Value("${pms.security.jwt.jwk-set-uri}")
+    private String jwkSetUri;
 
     @Value("${pms.cors.allowed-origins}")
     private List<String> corsAllowedOrigins;
@@ -73,7 +75,6 @@ public class SecurityConfig {
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        SecretKeySpec key = new SecretKeySpec(jwtSecret.getBytes(), "HmacSHA256");
-        return NimbusJwtDecoder.withSecretKey(key).build();
+        return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
     }
 }

@@ -33,11 +33,11 @@ server:
 pms:
   security:
     jwt:
-      # Same secret as monokek-spring's app.jwt.secret (see monokek-spring/.env's JWT_SECRET) —
-      # monokek-spring is the identity service that issues the tokens this app only validates,
-      # so both defaults must match for a token minted by one to be accepted by the other.
-      secret: ${JWT_SECRET:QA7PIo9RokhOSvgyDXKpMayBqwwBduHZM51pQKFp}
-      expiration-minutes: 480
+      # monokek-identity is the identity service that issues the tokens this app only
+      # validates — a standard OAuth2 JWKS lookup, not a shared secret: this app has zero
+      # config referencing monokek-spring, so monokek-spring being down never affects
+      # pms-modulith's ability to validate an already-issued or newly-minted token.
+      jwk-set-uri: ${IDENTITY_JWK_SET_URI:http://localhost:8082/oauth2/jwks}
   channel-manager:
     webhook-token: ${CHANNEL_MANAGER_WEBHOOK_TOKEN:change-this-webhook-secret}
   cors:
