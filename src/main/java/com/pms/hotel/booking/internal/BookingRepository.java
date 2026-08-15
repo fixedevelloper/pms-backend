@@ -14,7 +14,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     Optional<Booking> findByExternalReference(String externalReference);
 
-    @EntityGraph(attributePaths = {"rooms"})
+    @EntityGraph(attributePaths = {"rooms", "rooms.occupants"})
     @Query("""
     select b from Booking b
     where (:status is null or b.status = :status)
