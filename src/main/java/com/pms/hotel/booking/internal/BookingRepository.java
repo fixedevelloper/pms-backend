@@ -74,4 +74,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             """)
     List<Object[]> revenueByCheckoutDateBetween(
             @Param("start") java.time.LocalDate start, @Param("end") java.time.LocalDate end);
+    // Charger b.rooms et rooms.occupants dans la même requête
+    @EntityGraph(attributePaths = {"rooms", "rooms.occupants"})
+    Optional<Booking> findWithDetailsById(Long id);
 }

@@ -350,7 +350,7 @@ public class BookingService implements BookingApi {
     }
 
     public Booking findEntity(Long id) {
-        return bookingRepository.findById(id).orElseThrow(() -> ResourceNotFoundException.of("Réservation", id));
+        return bookingRepository.findWithDetailsById(id).orElseThrow(() -> ResourceNotFoundException.of("Réservation", id));
     }
 
     public BookingSummary toSummary(Booking booking) {
