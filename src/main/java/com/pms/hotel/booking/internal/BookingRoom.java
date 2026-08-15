@@ -11,7 +11,10 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -49,5 +52,5 @@ public class BookingRoom extends BaseEntity {
     private Integer childrenCount = 0;
 
     @OneToMany(mappedBy = "bookingRoom", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<BookingRoomOccupant> occupants = new ArrayList<>();
+    private Set<BookingRoomOccupant> occupants = new LinkedHashSet<>();
 }

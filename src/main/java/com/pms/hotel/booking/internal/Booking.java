@@ -9,7 +9,10 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -72,5 +75,5 @@ public class Booking extends BaseEntity {
     private BigDecimal totalAmount;
 
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<BookingRoom> rooms = new ArrayList<>();
+    private Set<BookingRoom> rooms = new LinkedHashSet<>();
 }
