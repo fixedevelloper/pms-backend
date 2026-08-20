@@ -14,7 +14,7 @@ public final class PosRequests {
 
     public record ChargeToRoomRequest(
             @NotNull Long bookingId,
-            @NotBlank @Pattern(regexp = "restaurant|spa|bar|room_service") String department,
+            @NotBlank @Pattern(regexp = "restaurant|spa|bar|room_service|minibar") String department,
             @NotBlank String itemName,
             @NotNull @Min(1) Integer quantity,
             @NotNull @DecimalMin("0") BigDecimal unitPrice,

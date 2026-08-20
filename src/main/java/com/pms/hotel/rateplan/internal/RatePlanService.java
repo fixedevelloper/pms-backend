@@ -6,6 +6,7 @@ import com.pms.hotel.rateplan.RatePlanSummary;
 import com.pms.hotel.rateplan.internal.web.RatePlanRequests.CreateRatePlanRequest;
 import com.pms.hotel.rateplan.internal.web.RatePlanRequests.UpdateRatePlanRequest;
 import com.pms.hotel.shared.exception.ResourceNotFoundException;
+import com.pms.hotel.shared.security.CurrentUser;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -19,6 +20,7 @@ public class RatePlanService implements RatePlanApi {
 
     private final RatePlanRepository ratePlanRepository;
     private final ApplicationEventPublisher events;
+    private final CurrentUser currentUser;
 
     @Override
     @Transactional(readOnly = true)
@@ -34,6 +36,12 @@ public class RatePlanService implements RatePlanApi {
         return plans.stream().map(RatePlan::toSummary).toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<RatePlanSummary> listActive(Long roomTypeId) {
+        return list(roomTypeId).stream().filter(RatePlanSummary::active).toList();
+    }
+
     public RatePlanSummary create(CreateRatePlanRequest request) {
         RatePlan ratePlan = new RatePlan();
         ratePlan.setRoomTypeId(request.roomTypeId());
@@ -46,7 +54,7 @@ public class RatePlanService implements RatePlanApi {
         ratePlan.setCancellationFeePercent(request.cancellationFeePercent());
         ratePlan.setActive(true);
         RatePlanSummary summary = ratePlanRepository.save(ratePlan).toSummary();
-        events.publishEvent(new RatePlanPriceChangedEvent(summary.id(), summary.roomTypeId(), summary.pricePerNight()));
+        events.publishEvent(new RatePlanPriceChangedEvent(summary.id(), summary.roomTypeId(), summary.pricePerNight(), currentUser.userId()));
         return summary;
     }
 
@@ -65,7 +73,7 @@ public class RatePlanService implements RatePlanApi {
 
         RatePlanSummary summary = ratePlanRepository.save(ratePlan).toSummary();
         if (priceChanged) {
-            events.publishEvent(new RatePlanPriceChangedEvent(summary.id(), summary.roomTypeId(), summary.pricePerNight()));
+            events.publishEvent(new RatePlanPriceChangedEvent(summary.id(), summary.roomTypeId(), summary.pricePerNight(), currentUser.userId()));
         }
         return summary;
     }

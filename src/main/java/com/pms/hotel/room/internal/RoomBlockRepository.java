@@ -22,5 +22,6 @@ public interface RoomBlockRepository extends JpaRepository<RoomBlock, Long> {
 
     List<RoomBlock> findByRoomIdOrderByStartDateDesc(Long roomId);
 
-    List<RoomBlock> findAllByOrderByStartDateDesc();
+    @Query("select rb from RoomBlock rb join rb.room r join r.roomType rt where rt.propertyId = :propertyId order by rb.startDate desc")
+    List<RoomBlock> findByPropertyIdOrderByStartDateDesc(@Param("propertyId") Long propertyId);
 }

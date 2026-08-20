@@ -27,6 +27,8 @@ public final class BookingRequests {
             @NotNull LocalDate checkOut,
             @NotBlank String source,
             @Pattern(regexp = "none|credit_card|deposit|company") String guaranteeType,
+            Long companyId,
+            Long groupId,
             @DecimalMin("0") BigDecimal depositAmount,
             @NotEmpty @Valid List<RoomAllocation> rooms,
             @NotNull @DecimalMin("0") BigDecimal totalAmount) {

@@ -5,9 +5,11 @@ import com.pms.hotel.room.RoomAvailabilityChangedEvent;
 import com.pms.hotel.room.RoomBlockView;
 import com.pms.hotel.room.RoomDetails;
 import com.pms.hotel.room.RoomOccupancyStats;
+import com.pms.hotel.room.RoomStatusLogEntry;
 import com.pms.hotel.room.RoomStatuses;
 import com.pms.hotel.shared.exception.BusinessRuleException;
 import com.pms.hotel.shared.exception.ResourceNotFoundException;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RoomService implements RoomApi {
 
     private final RoomRepository roomRepository;
+    private final RoomTypeRepository roomTypeRepository;
     private final RoomStatusLogRepository roomStatusLogRepository;
     private final RoomBlockRepository roomBlockRepository;
     private final ApplicationEventPublisher events;
@@ -106,16 +109,40 @@ public class RoomService implements RoomApi {
         return roomBlockRepository.existsOverlap(roomId, checkIn, checkOut);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> findRoomIdsByProperty(Long propertyId) {
+        return roomRepository.findIdsByPropertyId(propertyId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.pms.hotel.room.RoomTypeSummary getRoomTypeById(Long roomTypeId) {
+        return roomTypeRepository.findById(roomTypeId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Type de chambre", roomTypeId))
+                .toSummary();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomStatusLogEntry> statusChangesBetween(Instant from, Instant to) {
+        return roomStatusLogRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(from, to).stream()
+                .map(log -> new RoomStatusLogEntry(
+                        log.getRoom().getId(), log.getRoom().getRoomNumber(), log.getStatus(),
+                        log.getNote(), log.getUpdatedBy(), log.getCreatedAt()))
+                .toList();
+    }
+
     /** Réservé au module room (contrôleur) : liste des blocages d'une chambre, du plus récent au plus ancien. */
     @Transactional(readOnly = true)
     public List<RoomBlockView> listBlocksForRoom(Long roomId) {
         return roomBlockRepository.findByRoomIdOrderByStartDateDesc(roomId).stream().map(RoomBlock::toView).toList();
     }
 
-    /** Tous les blocages, tous établissements confondus (pas de multi-propriété) — pour une vue d'ensemble. */
+    /** Tous les blocages de l'établissement donné, du plus récent au plus ancien. */
     @Transactional(readOnly = true)
-    public List<RoomBlockView> listAllBlocks() {
-        return roomBlockRepository.findAllByOrderByStartDateDesc().stream().map(RoomBlock::toView).toList();
+    public List<RoomBlockView> listAllBlocks(Long propertyId) {
+        return roomBlockRepository.findByPropertyIdOrderByStartDateDesc(propertyId).stream().map(RoomBlock::toView).toList();
     }
 
     public RoomBlockView createBlock(Long roomId, LocalDate startDate, LocalDate endDate, String reason, String notes) {

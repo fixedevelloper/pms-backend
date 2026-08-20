@@ -14,4 +14,10 @@ public interface GuestApi {
 
     /** Finds the guest by email, creating (or refreshing) it otherwise. Used by the channel-manager module. */
     GuestSummary findOrCreateByEmail(GuestUpsertRequest request);
+
+    /** Applique les champs non-null de {@code update} — utilisé par le pré-enregistrement en ligne (voir booking.internal.web.CheckinPublicController). */
+    GuestSummary updateProfile(Long guestId, GuestProfileUpdate update);
+
+    /** Dépose une pièce d'identité pour ce client — utilisé par le pré-enregistrement en ligne. */
+    GuestDocumentInfo attachDocument(Long guestId, String fileName, String contentType, byte[] data);
 }

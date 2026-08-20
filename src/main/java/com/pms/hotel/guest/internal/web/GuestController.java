@@ -2,6 +2,8 @@ package com.pms.hotel.guest.internal.web;
 
 import com.pms.hotel.guest.GuestSummary;
 import com.pms.hotel.guest.internal.Guest;
+import com.pms.hotel.guest.internal.GuestDocument;
+import com.pms.hotel.guest.internal.GuestDocumentRepository;
 import com.pms.hotel.guest.internal.GuestRepository;
 import com.pms.hotel.guest.internal.web.GuestRequests.CreateGuestRequest;
 import com.pms.hotel.guest.internal.web.GuestRequests.UpdateGuestRequest;
@@ -14,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 class GuestController {
 
     private final GuestRepository guestRepository;
+    private final GuestDocumentRepository guestDocumentRepository;
 
     @GetMapping
     public PageResponse<GuestSummary> index(
@@ -101,6 +105,22 @@ class GuestController {
         if (request.blacklisted() != null) guest.setBlacklisted(request.blacklisted());
         if (request.blacklistReason() != null) guest.setBlacklistReason(request.blacklistReason());
         return ResponseEntity.ok(guestRepository.save(guest).toSummary());
+    }
+
+    /** Pièces d'identité déposées par ce client (dépôt en ligne lors du pré-enregistrement — voir CheckinPublicController) — métadonnées seulement, pas les octets. */
+    @GetMapping("/{id}/documents")
+    public List<com.pms.hotel.guest.GuestDocumentInfo> documents(@PathVariable Long id) {
+        return guestDocumentRepository.findByGuestIdOrderByCreatedAtDesc(id).stream().map(GuestDocument::toInfo).toList();
+    }
+
+    @GetMapping("/{id}/documents/{documentId}")
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable Long id, @PathVariable Long documentId) {
+        GuestDocument document = guestDocumentRepository.findById(documentId)
+                .filter(d -> d.getGuestId().equals(id))
+                .orElseThrow(() -> ResourceNotFoundException.of("Document", documentId));
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(document.getContentType()))
+                .body(document.getData());
     }
 
     private Guest findEntity(Long id) {

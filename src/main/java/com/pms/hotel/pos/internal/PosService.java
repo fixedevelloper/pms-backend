@@ -55,6 +55,7 @@ public class PosService implements PosApi {
     }
 
     /** Step 2 at the POS terminal: bill the order to the room's folio. */
+    @Override
     public ExtraChargeLine chargeToRoom(Long bookingId, String department, String itemName, int quantity,
             BigDecimal unitPrice, String externalOrderId) {
         bookingApi.getById(bookingId); // 404s if the booking doesn't exist

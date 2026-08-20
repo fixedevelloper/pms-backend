@@ -8,6 +8,7 @@ import com.pms.hotel.booking.internal.DailyFlux;
 import com.pms.hotel.booking.internal.BookingService;
 import com.pms.hotel.booking.internal.web.BookingRequests.CreateBookingRequest;
 import com.pms.hotel.booking.internal.web.BookingRequests.UpdateReservationStatusRequest;
+import com.pms.hotel.property.CurrentProperty;
 import com.pms.hotel.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -34,21 +35,24 @@ class BookingController {
 
     private final BookingRepository bookingRepository;
     private final BookingService bookingService;
+    private final CurrentProperty currentProperty;
 
     @GetMapping("/bookings")
     public PageResponse<BookingSummary> index(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Long guestId,
+            @RequestParam(required = false) Long groupId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size) {
         Pageable pageable = Pageable.ofSize(size).withPage(page);
-        return PageResponse.of(bookingRepository.search(status, guestId, pageable), bookingService::toSummary);
+        return PageResponse.of(bookingRepository.search(currentProperty.resolve(), status, guestId, groupId, pageable), bookingService::toSummary);
     }
 
     @PostMapping("/bookings")
     @ResponseStatus(HttpStatus.CREATED)
     public BookingSummary store(@Valid @RequestBody CreateBookingRequest request) {
         BookingCreateCommand command = new BookingCreateCommand(
+                currentProperty.resolve(),
                 request.firstName(),
                 request.lastName(),
                 request.email(),
@@ -58,6 +62,8 @@ class BookingController {
                 request.checkOut().atStartOfDay().toInstant(ZoneOffset.UTC),
                 request.source(),
                 request.guaranteeType() != null ? request.guaranteeType() : Booking.GUARANTEE_NONE,
+                request.companyId(),
+                request.groupId(),
                 request.depositAmount() != null ? request.depositAmount() : BigDecimal.ZERO,
                 request.rooms().stream()
                         .map(r -> new BookingCreateCommand.RoomAllocation(

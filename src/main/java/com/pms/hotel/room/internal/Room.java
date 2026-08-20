@@ -39,6 +39,7 @@ public class Room extends BaseEntity {
     public RoomDetails toSummary() {
         return new RoomDetails(
                 getId(),
+                roomType.getPropertyId(),
                 roomNumber,
                 floor,
                 status,

@@ -1,7 +1,9 @@
 package com.pms.hotel.reporting.internal;
 
 import com.pms.hotel.booking.DailyRevenuePoint;
+import com.pms.hotel.booking.SourceRevenuePoint;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -24,6 +26,22 @@ public final class ReportingViews {
     }
 
     public record OccupancyForecastPoint(LocalDate date, long occupiedRooms, long totalRooms, int occupancyRatePercent) {
+    }
+
+    /** Rapport de production par canal/segment — quel intermédiaire (direct, OTA, etc.) génère le plus de valeur. */
+    public record ProductionByChannelReport(List<SourceRevenuePoint> bySource, BigDecimal totalRevenue) {
+    }
+
+    /** Journal d'audit : modifications de tarifs et de statuts de chambres sur la période, pour prévenir la fraude interne. */
+    public record AuditTrailReport(List<RateChangeEntry> rateChanges, List<RoomStatusChangeEntry> roomStatusChanges) {
+    }
+
+    public record RateChangeEntry(
+            Long ratePlanId, String ratePlanName, Long roomTypeId, BigDecimal newPrice, Long changedByUserId, Instant changedAt) {
+    }
+
+    public record RoomStatusChangeEntry(
+            Long roomId, String roomNumber, String status, String note, Long updatedByUserId, Instant changedAt) {
     }
 
     /**

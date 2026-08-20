@@ -48,6 +48,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/channel-manager/**",
+                                // Booking Engine public (site vitrine de l'hôtel) — seuls endpoints
+                                // atteignables sans JWT, protégés par PublicRateLimitFilter (débit)
+                                // et RecaptchaVerifier (anti-bot) plutôt que par l'authentification.
+                                "/api/v1/public/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/actuator/health")

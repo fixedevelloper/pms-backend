@@ -6,7 +6,10 @@ import java.util.List;
 
 public record BookingSummary(
         Long id,
+        Long propertyId,
         Long guestId,
+        Long companyId,
+        Long groupId,
         String status,
         String source,
         String guaranteeType,
@@ -19,5 +22,7 @@ public record BookingSummary(
         BigDecimal taxAmount,
         BigDecimal discountAmount,
         BigDecimal totalAmount,
-        List<BookingRoomLine> rooms) {
+        List<BookingRoomLine> rooms,
+        String checkinToken,
+        Instant onlineCheckinCompletedAt) {
 }

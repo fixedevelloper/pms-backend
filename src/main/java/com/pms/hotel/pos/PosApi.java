@@ -14,4 +14,7 @@ public interface PosApi {
 
     /** Sum of charges still owed by the room (statuses {@code charged_to_room} and {@code pending}). */
     BigDecimal getOutstandingTotalForBooking(Long bookingId);
+
+    /** Bills a charge to a booking's folio — used by the housekeeping module to invoice minibar consumption. */
+    ExtraChargeLine chargeToRoom(Long bookingId, String department, String itemName, int quantity, BigDecimal unitPrice, String externalOrderId);
 }

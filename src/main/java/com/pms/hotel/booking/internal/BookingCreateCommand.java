@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 
 public record BookingCreateCommand(
+        Long propertyId,
         String firstName,
         String lastName,
         String email,
@@ -14,6 +15,8 @@ public record BookingCreateCommand(
         Instant checkOut,
         String source,
         String guaranteeType,
+        Long companyId,
+        Long groupId,
         BigDecimal depositAmount,
         List<RoomAllocation> rooms,
         BigDecimal totalAmount) {

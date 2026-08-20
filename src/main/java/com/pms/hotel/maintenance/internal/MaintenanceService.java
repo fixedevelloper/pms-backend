@@ -2,6 +2,7 @@ package com.pms.hotel.maintenance.internal;
 
 import com.pms.hotel.maintenance.MaintenanceTicketView;
 import com.pms.hotel.room.RoomApi;
+import com.pms.hotel.shared.exception.BusinessRuleException;
 import com.pms.hotel.shared.exception.ResourceNotFoundException;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -18,20 +19,30 @@ public class MaintenanceService {
     private final MaintenanceTicketRepository ticketRepository;
     private final RoomApi roomApi;
 
+    /** {@code propertyRoomIds} : chambres de l'établissement courant (voir RoomApi#findRoomIdsByProperty) — {@code roomId}, s'il est fourni, doit en faire partie. */
     @Transactional(readOnly = true)
-    public List<MaintenanceTicketView> list(String status, Long roomId) {
+    public List<MaintenanceTicketView> list(List<Long> propertyRoomIds, String status, Long roomId) {
+        if (propertyRoomIds.isEmpty()) {
+            return List.of();
+        }
         List<MaintenanceTicket> tickets;
         if (roomId != null) {
+            if (!propertyRoomIds.contains(roomId)) {
+                throw new BusinessRuleException("Cette chambre n'appartient pas à l'établissement courant.");
+            }
             tickets = ticketRepository.findByRoomIdOrderByCreatedAtDesc(roomId);
         } else if (status != null) {
-            tickets = ticketRepository.findByStatusOrderByCreatedAtDesc(status);
+            tickets = ticketRepository.findByRoomIdInAndStatusOrderByCreatedAtDesc(propertyRoomIds, status);
         } else {
-            tickets = ticketRepository.findAllByOrderByCreatedAtDesc();
+            tickets = ticketRepository.findByRoomIdInOrderByCreatedAtDesc(propertyRoomIds);
         }
         return tickets.stream().map(t -> t.toView(roomApi.getById(t.getRoomId()).roomNumber())).toList();
     }
 
-    public MaintenanceTicketView create(Long roomId, String title, String description, String priority, Long reportedBy) {
+    public MaintenanceTicketView create(List<Long> propertyRoomIds, Long roomId, String title, String description, String priority, Long reportedBy) {
+        if (!propertyRoomIds.contains(roomId)) {
+            throw new BusinessRuleException("Cette chambre n'appartient pas à l'établissement courant.");
+        }
         String roomNumber = roomApi.getById(roomId).roomNumber(); // 404 si la chambre n'existe pas
 
         MaintenanceTicket ticket = new MaintenanceTicket();

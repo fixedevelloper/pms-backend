@@ -24,4 +24,14 @@ public final class BillingRequests {
             @NotNull @DecimalMin("0.01") BigDecimal amount,
             @NotBlank @Pattern(regexp = "credit_card|cash|bank_transfer|mobile_money|stripe|paypal") String paymentMethod) {
     }
+
+    public record RecordForeignCurrencyPaymentRequest(
+            @NotNull @DecimalMin("0.01") BigDecimal tenderedAmount,
+            @NotBlank @Size(min = 3, max = 3) String tenderedCurrency,
+            @NotBlank @Pattern(regexp = "credit_card|cash|bank_transfer|mobile_money|stripe|paypal") String paymentMethod) {
+    }
+
+    /** csv : en-tête "date,description,montant" (une transaction par ligne, date ISO). */
+    public record ImportBankStatementRequest(@NotBlank String csv) {
+    }
 }

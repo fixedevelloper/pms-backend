@@ -17,6 +17,9 @@ import lombok.Setter;
 @Table(name = "room_types")
 public class RoomType extends BaseEntity {
 
+    @Column(name = "property_id", nullable = false)
+    private Long propertyId;
+
     @Column(nullable = false)
     private String name;
 
@@ -29,6 +32,6 @@ public class RoomType extends BaseEntity {
     private BigDecimal basePrice;
 
     public RoomTypeSummary toSummary() {
-        return new RoomTypeSummary(getId(), name, description, baseCapacity, basePrice);
+        return new RoomTypeSummary(getId(), propertyId, name, description, baseCapacity, basePrice);
     }
 }

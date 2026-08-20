@@ -9,18 +9,24 @@ import com.pms.hotel.guest.GuestApi;
 import com.pms.hotel.guest.GuestSummary;
 import com.pms.hotel.pos.PosApi;
 import com.pms.hotel.booking.RoomStayInterval;
+import com.pms.hotel.reporting.internal.ReportingViews.AuditTrailReport;
 import com.pms.hotel.reporting.internal.ReportingViews.DashboardStats;
 import com.pms.hotel.reporting.internal.ReportingViews.OccupancyForecastPoint;
 import com.pms.hotel.reporting.internal.ReportingViews.PoliceRegisterEntry;
+import com.pms.hotel.reporting.internal.ReportingViews.ProductionByChannelReport;
+import com.pms.hotel.reporting.internal.ReportingViews.RateChangeEntry;
 import com.pms.hotel.reporting.internal.ReportingViews.RevenueReport;
 import com.pms.hotel.reporting.internal.ReportingViews.RevenueStats;
+import com.pms.hotel.reporting.internal.ReportingViews.RoomStatusChangeEntry;
 import com.pms.hotel.reporting.internal.web.RoomOccupancyView;
 import com.pms.hotel.reporting.internal.web.RoomOccupancyView.CurrentStayView;
+import com.pms.hotel.rateplan.RatePlanApi;
 import com.pms.hotel.room.RoomApi;
 import com.pms.hotel.room.RoomDetails;
 import com.pms.hotel.room.RoomOccupancyStats;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
@@ -39,6 +45,8 @@ public class ReportingService {
     private final RoomApi roomApi;
     private final PosApi posApi;
     private final GuestApi guestApi;
+    private final RatePlanApi ratePlanApi;
+    private final RateChangeAuditLogRepository rateChangeAuditLogRepository;
 
     public DashboardStats dashboardStats() {
         YearMonth month = YearMonth.now();
@@ -168,5 +176,35 @@ public class ReportingService {
             }
         }
         return entries;
+    }
+
+    /** Chiffre d'affaires par canal/segment (direct, OTA, etc.) — pour identifier quel intermédiaire génère le plus de valeur. */
+    public ProductionByChannelReport productionByChannel(LocalDate start, LocalDate end) {
+        var bySource = bookingApi.revenueBySourceCheckedOutBetween(start, end);
+        BigDecimal total = bySource.stream()
+                .map(com.pms.hotel.booking.SourceRevenuePoint::revenue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new ProductionByChannelReport(bySource, total);
+    }
+
+    /**
+     * Journal d'audit des modifications de tarifs et de statuts de chambres
+     * sur [from, to) — pour prévenir la fraude interne (voir
+     * RateChangeAuditLog et RoomStatusLog, déjà persistés à chaque
+     * changement, simplement jamais exposés en un seul rapport jusqu'ici).
+     */
+    public AuditTrailReport auditTrail(Instant from, Instant to) {
+        List<RateChangeEntry> rateChanges = rateChangeAuditLogRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(from, to).stream()
+                .map(log -> new RateChangeEntry(
+                        log.getRatePlanId(), ratePlanApi.getById(log.getRatePlanId()).name(), log.getRoomTypeId(),
+                        log.getNewPrice(), log.getChangedByUserId(), log.getCreatedAt()))
+                .toList();
+
+        List<RoomStatusChangeEntry> roomStatusChanges = roomApi.statusChangesBetween(from, to).stream()
+                .map(entry -> new RoomStatusChangeEntry(
+                        entry.roomId(), entry.roomNumber(), entry.status(), entry.note(), entry.updatedByUserId(), entry.changedAt()))
+                .toList();
+
+        return new AuditTrailReport(rateChanges, roomStatusChanges);
     }
 }

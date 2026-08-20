@@ -45,6 +45,18 @@ public interface BookingApi {
     /** Réservations attendues le {@code onOrBeforeDate} (ou avant) qui n'ont jamais été enregistrées — utilisé par le night audit. */
     List<BookingSummary> findNoShowCandidates(LocalDate onOrBeforeDate);
 
+    /** Réservations d'une société garante, sorties (checked_out) sur la période — utilisé par la facturation société groupée. */
+    List<BookingSummary> findByCompanyCheckedOutBetween(Long companyId, LocalDate from, LocalDate to);
+
+    /** Réservations effectivement sorties (statut checked_out) le {@code date} donné — utilisé par l'enquête de satisfaction post-séjour. */
+    List<BookingSummary> findCheckedOutOn(LocalDate date);
+
+    /** Chiffre d'affaires groupé par canal/segment (Booking#source) sur les sorties de la période — rapport de production par canal. */
+    List<SourceRevenuePoint> revenueBySourceCheckedOutBetween(LocalDate start, LocalDate end);
+
+    /** Réservations individuelles d'un groupe/allotement — la "rooming list" (voir com.pms.hotel.groupbooking). */
+    List<BookingSummary> findByGroupId(Long groupId);
+
     /**
      * Marque une réservation no-show et calcule le frais applicable (même
      * logique que l'annulation — un no-show est traité comme une annulation

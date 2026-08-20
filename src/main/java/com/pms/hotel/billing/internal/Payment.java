@@ -47,4 +47,21 @@ public class Payment extends BaseEntity {
 
     @Column(name = "paid_at")
     private Instant paidAt;
+
+    /**
+     * Montant réellement remis par le client quand il paie dans une devise
+     * différente de la devise de référence de l'établissement — {@code amount}/
+     * {@code currency} restent l'équivalent en devise de référence (ce qui compte
+     * pour le solde de la facture). Null pour un paiement dans la devise de
+     * référence : pas de conversion à faire.
+     */
+    @Column(name = "tendered_amount")
+    private BigDecimal tenderedAmount;
+
+    @Column(name = "tendered_currency")
+    private String tenderedCurrency;
+
+    /** Taux appliqué au moment du paiement (tenderedCurrency -> devise de référence) — jamais recalculé rétroactivement, même si le taux configuré change ensuite. */
+    @Column(name = "exchange_rate_used")
+    private BigDecimal exchangeRateUsed;
 }

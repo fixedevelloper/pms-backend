@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface RoomRepository extends JpaRepository<Room, Long> {
 
@@ -28,4 +29,10 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
      */
     @Query("select r from Room r join fetch r.roomType")
     List<Room> findAll(Sort sort);
+
+    @Query("select r from Room r join fetch r.roomType rt where rt.propertyId = :propertyId")
+    List<Room> findByPropertyId(@Param("propertyId") Long propertyId, Sort sort);
+
+    @Query("select r.id from Room r where r.roomType.propertyId = :propertyId")
+    List<Long> findIdsByPropertyId(@Param("propertyId") Long propertyId);
 }

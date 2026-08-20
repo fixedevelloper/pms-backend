@@ -14,6 +14,8 @@ import com.pms.hotel.room.internal.web.RoomRequests.CreateRoomRequest;
 import com.pms.hotel.room.internal.web.RoomRequests.CreateRoomTypeRequest;
 import com.pms.hotel.room.internal.web.RoomRequests.UpdateRoomStatusRequest;
 import com.pms.hotel.room.internal.web.RoomRequests.UpdateRoomTypeRequest;
+import com.pms.hotel.property.CurrentProperty;
+import com.pms.hotel.shared.exception.BusinessRuleException;
 import com.pms.hotel.shared.exception.ResourceNotFoundException;
 import com.pms.hotel.shared.security.CurrentUser;
 import jakarta.validation.Valid;
@@ -43,16 +45,18 @@ class RoomController {
     private final RoomApi roomApi;
     private final RoomService roomService;
     private final CurrentUser currentUser;
+    private final CurrentProperty currentProperty;
 
     @GetMapping("/room-types")
     public List<RoomTypeSummary> indexTypes() {
-        return roomTypeRepository.findAll(Sort.by("name")).stream().map(RoomType::toSummary).toList();
+        return roomTypeRepository.findByPropertyId(currentProperty.resolve(), Sort.by("name")).stream().map(RoomType::toSummary).toList();
     }
 
     @PostMapping("/room-types")
     @ResponseStatus(HttpStatus.CREATED)
     public RoomTypeSummary storeType(@Valid @RequestBody CreateRoomTypeRequest request) {
         RoomType roomType = new RoomType();
+        roomType.setPropertyId(currentProperty.resolve());
         roomType.setName(request.name());
         roomType.setDescription(request.description());
         roomType.setBaseCapacity(request.baseCapacity());
@@ -75,7 +79,7 @@ class RoomController {
 
     @GetMapping("/rooms")
     public List<RoomDetails> index() {
-        return roomRepository.findAll(Sort.by("roomNumber")).stream().map(Room::toSummary).toList();
+        return roomRepository.findByPropertyId(currentProperty.resolve(), Sort.by("roomNumber")).stream().map(Room::toSummary).toList();
     }
 
     // GET /rooms/occupancy vit désormais dans le module reporting (RoomOccupancyController) —
@@ -86,6 +90,9 @@ class RoomController {
     public RoomDetails storeRoom(@Valid @RequestBody CreateRoomRequest request) {
         RoomType roomType = roomTypeRepository.findById(request.roomTypeId())
                 .orElseThrow(() -> ResourceNotFoundException.of("Type de chambre", request.roomTypeId()));
+        if (!roomType.getPropertyId().equals(currentProperty.resolve())) {
+            throw new BusinessRuleException("Ce type de chambre n'appartient pas à l'établissement courant.");
+        }
 
         Room room = new Room();
         room.setRoomType(roomType);
@@ -107,7 +114,7 @@ class RoomController {
 
     @GetMapping("/rooms/blocks")
     public List<RoomBlockView> indexAllBlocks() {
-        return roomService.listAllBlocks();
+        return roomService.listAllBlocks(currentProperty.resolve());
     }
 
     @GetMapping("/rooms/{id}/blocks")

@@ -15,13 +15,20 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     Optional<Booking> findByExternalReference(String externalReference);
 
     @EntityGraph(attributePaths = {"rooms", "rooms.occupants"})
+    List<Booking> findByGroupIdOrderByCreatedAtAsc(Long groupId);
+
+    @EntityGraph(attributePaths = {"rooms", "rooms.occupants"})
     @Query("""
     select b from Booking b
-    where (:status is null or b.status = :status)
+    where b.propertyId = :propertyId
+        and (:status is null or b.status = :status)
         and (:guestId is null or b.guestId = :guestId)
+        and (:groupId is null or b.groupId = :groupId)
     order by b.createdAt desc
     """)
-    Page<Booking> search(@Param("status") String status, @Param("guestId") Long guestId, Pageable pageable);
+    Page<Booking> search(
+            @Param("propertyId") Long propertyId, @Param("status") String status,
+            @Param("guestId") Long guestId, @Param("groupId") Long groupId, Pageable pageable);
 
     @Query("""
             select b from Booking b
@@ -51,6 +58,36 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                 and cast(b.checkedOutAt as date) = :date
             """)
     java.math.BigDecimal sumRevenueForCheckoutDate(@Param("date") java.time.LocalDate date);
+
+    @Query("""
+            select b from Booking b
+            where b.companyId = :companyId
+                and b.status = 'checked_out'
+                and cast(b.checkedOutAt as date) between :from and :to
+            order by b.checkedOutAt asc
+            """)
+    List<Booking> findByCompanyCheckedOutBetween(
+            @Param("companyId") Long companyId,
+            @Param("from") java.time.LocalDate from,
+            @Param("to") java.time.LocalDate to);
+
+    @Query("""
+            select b from Booking b
+            where b.status = 'checked_out'
+                and cast(b.checkedOutAt as date) = :date
+            """)
+    List<Booking> findCheckedOutOn(@Param("date") java.time.LocalDate date);
+
+    @Query("""
+            select b.source as source, count(b) as bookingsCount, coalesce(sum(b.totalAmount), 0) as revenue
+            from Booking b
+            where b.status = 'checked_out'
+                and cast(b.checkedOutAt as date) between :start and :end
+            group by b.source
+            order by revenue desc
+            """)
+    List<Object[]> revenueBySourceCheckedOutBetween(
+            @Param("start") java.time.LocalDate start, @Param("end") java.time.LocalDate end);
 
     long countByStatus(String status);
 

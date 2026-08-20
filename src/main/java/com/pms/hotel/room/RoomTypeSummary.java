@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public record RoomTypeSummary(
         Long id,
+        Long propertyId,
         String name,
         String description,
         int baseCapacity,

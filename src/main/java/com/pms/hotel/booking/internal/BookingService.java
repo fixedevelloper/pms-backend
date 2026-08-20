@@ -10,7 +10,11 @@ import com.pms.hotel.booking.DailyRevenuePoint;
 import com.pms.hotel.booking.ExternalBookingUpsert;
 import com.pms.hotel.booking.RoomOccupant;
 import com.pms.hotel.booking.RoomStayInterval;
+import com.pms.hotel.company.CompanyApi;
+import com.pms.hotel.groupbooking.GroupBookingApi;
+import com.pms.hotel.groupbooking.GroupSummary;
 import com.pms.hotel.guest.GuestApi;
+import com.pms.hotel.property.PropertyApi;
 import com.pms.hotel.guest.GuestSummary;
 import com.pms.hotel.guest.GuestUpsertRequest;
 import com.pms.hotel.rateplan.RatePlanApi;
@@ -19,6 +23,7 @@ import com.pms.hotel.room.RoomApi;
 import com.pms.hotel.room.RoomDetails;
 import com.pms.hotel.room.RoomOccupancyStats;
 import com.pms.hotel.shared.exception.BusinessRuleException;
+import com.pms.hotel.shared.exception.ForbiddenActionException;
 import com.pms.hotel.shared.exception.ResourceNotFoundException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -26,6 +31,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +50,9 @@ public class BookingService implements BookingApi {
     private final GuestApi guestApi;
     private final RoomApi roomApi;
     private final RatePlanApi ratePlanApi;
+    private final CompanyApi companyApi;
+    private final GroupBookingApi groupBookingApi;
+    private final PropertyApi propertyApi;
     private final ApplicationEventPublisher events;
 
     @Override
@@ -74,15 +83,33 @@ public class BookingService implements BookingApi {
         LocalDate checkInDate = command.checkIn().atZone(ZoneOffset.UTC).toLocalDate();
         LocalDate checkOutDate = command.checkOut().atZone(ZoneOffset.UTC).toLocalDate();
 
+        if (Booking.GUARANTEE_COMPANY.equals(command.guaranteeType())) {
+            if (command.companyId() == null) {
+                throw new BusinessRuleException("Une société garante est requise pour une garantie de type \"company\".");
+            }
+            companyApi.getById(command.companyId()); // 404 si la société n'existe pas
+        }
+
+        if (command.groupId() != null) {
+            GroupSummary group = groupBookingApi.getById(command.groupId()); // 404 si le groupe n'existe pas
+            if (!group.propertyId().equals(command.propertyId())) {
+                throw new BusinessRuleException("Ce groupe n'appartient pas à l'établissement de cette réservation.");
+            }
+        }
+
         for (BookingCreateCommand.RoomAllocation allocation : command.rooms()) {
+            RoomDetails room = roomApi.getById(allocation.roomId());
+            if (!room.propertyId().equals(command.propertyId())) {
+                throw new BusinessRuleException(
+                        "La chambre numéro " + room.roomNumber() + " n'appartient pas à l'établissement de cette réservation.",
+                        Map.of("room_ids", List.of("La chambre numéro " + room.roomNumber() + " n'appartient pas à l'établissement de cette réservation.")));
+            }
             if (bookingRoomRepository.existsOverlap(allocation.roomId(), command.checkIn(), command.checkOut())) {
-                RoomDetails room = roomApi.getById(allocation.roomId());
                 throw new BusinessRuleException(
                         "La chambre numéro " + room.roomNumber() + " est déjà réservée pour ces dates.",
                         Map.of("room_ids", List.of("La chambre numéro " + room.roomNumber() + " est déjà réservée pour ces dates.")));
             }
             if (roomApi.isBlocked(allocation.roomId(), checkInDate, checkOutDate)) {
-                RoomDetails room = roomApi.getById(allocation.roomId());
                 throw new BusinessRuleException(
                         "La chambre numéro " + room.roomNumber() + " est bloquée (hors-vente) pour ces dates.",
                         Map.of("room_ids", List.of("La chambre numéro " + room.roomNumber() + " est bloquée (hors-vente) pour ces dates.")));
@@ -90,12 +117,16 @@ public class BookingService implements BookingApi {
         }
 
         Booking booking = new Booking();
+        booking.setPropertyId(command.propertyId());
         booking.setGuestId(guest.id());
         booking.setCheckedInAt(command.checkIn());
         booking.setCheckedOutAt(command.checkOut());
         booking.setStatus(Booking.CONFIRMED);
         booking.setSource(command.source());
         booking.setGuaranteeType(command.guaranteeType());
+        booking.setCompanyId(command.companyId());
+        booking.setGroupId(command.groupId());
+        booking.setCheckinToken(UUID.randomUUID().toString());
         booking.setDepositAmount(command.depositAmount());
         booking.setTotalAmount(command.totalAmount());
         booking = bookingRepository.save(booking);
@@ -132,6 +163,8 @@ public class BookingService implements BookingApi {
         for (BookingCreateCommand.RoomAllocation allocation : command.rooms()) {
             events.publishEvent(new BookingAvailabilityChangedEvent(allocation.roomId(), checkInDate, checkOutDate, "booking_created"));
         }
+        
+        events.publishEvent(new com.pms.hotel.booking.BookingCreatedEvent(booking.getId()));
 
         return toSummary(booking);
     }
@@ -175,6 +208,32 @@ public class BookingService implements BookingApi {
     @Transactional(readOnly = true)
     public List<BookingSummary> findNoShowCandidates(LocalDate onOrBeforeDate) {
         return bookingRepository.findNoShowCandidates(onOrBeforeDate).stream().map(this::toSummary).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingSummary> findByCompanyCheckedOutBetween(Long companyId, LocalDate from, LocalDate to) {
+        return bookingRepository.findByCompanyCheckedOutBetween(companyId, from, to).stream().map(this::toSummary).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingSummary> findCheckedOutOn(LocalDate date) {
+        return bookingRepository.findCheckedOutOn(date).stream().map(this::toSummary).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingSummary> findByGroupId(Long groupId) {
+        return bookingRepository.findByGroupIdOrderByCreatedAtAsc(groupId).stream().map(this::toSummary).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.pms.hotel.booking.SourceRevenuePoint> revenueBySourceCheckedOutBetween(LocalDate start, LocalDate end) {
+        return bookingRepository.revenueBySourceCheckedOutBetween(start, end).stream()
+                .map(row -> new com.pms.hotel.booking.SourceRevenuePoint((String) row[0], (Long) row[1], (BigDecimal) row[2]))
+                .toList();
     }
 
     @Override
@@ -258,6 +317,16 @@ public class BookingService implements BookingApi {
         Booking booking = bookingRepository.findByExternalReference(command.externalReference())
                 .orElseGet(Booking::new);
 
+        if (booking.getId() == null) {
+            // Cloisonnement multi-propriété du channel manager non traité (canaux/mappings
+            // encore globaux) : la propriété se déduit de la chambre si connue, sinon repli sur
+            // le premier établissement actif — correct pour un déploiement mono-établissement.
+            booking.setPropertyId(command.roomId() != null
+                    ? roomApi.getById(command.roomId()).propertyId()
+                    : propertyApi.findAllActivePropertyIds().stream().findFirst()
+                            .orElseThrow(() -> new BusinessRuleException("Aucun établissement configuré.")));
+        }
+
         booking.setGuestId(command.guestId());
         booking.setCheckedInAt(command.checkedInAt());
         booking.setCheckedOutAt(command.checkedOutAt());
@@ -291,7 +360,9 @@ public class BookingService implements BookingApi {
 
     @Override
     public void markCheckedOut(Long bookingId) {
-        findEntity(bookingId).setStatus(Booking.CHECKED_OUT);
+        Booking booking = findEntity(bookingId);
+        booking.setStatus(Booking.CHECKED_OUT);
+        events.publishEvent(new com.pms.hotel.booking.BookingCheckedOutEvent(booking.getId(), booking.getGuestId(), booking.getTotalAmount()));
     }
 
     @Override
@@ -346,11 +417,27 @@ public class BookingService implements BookingApi {
                 .map(br -> roomApi.getById(br.getRoomId()).roomNumber())
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("");
-        return new DailyFlux.StayFlux(booking.getId(), guest.fullName(), roomNumbers, booking.getStatus());
+        return new DailyFlux.StayFlux(
+                booking.getId(), guest.fullName(), roomNumbers, booking.getStatus(), booking.getOnlineCheckinCompletedAt() != null);
     }
 
     public Booking findEntity(Long id) {
         return bookingRepository.findWithDetailsById(id).orElseThrow(() -> ResourceNotFoundException.of("Réservation", id));
+    }
+
+    /** Valide le jeton de pré-enregistrement en ligne — voir booking.internal.web.CheckinPublicController, jamais authentifié. */
+    public Booking findEntityForCheckin(Long id, String token) {
+        Booking booking = findEntity(id);
+        if (token == null || booking.getCheckinToken() == null || !booking.getCheckinToken().equals(token)) {
+            throw new ForbiddenActionException("Lien de pré-enregistrement invalide.");
+        }
+        return booking;
+    }
+
+    public BookingSummary completeOnlineCheckin(Long id, String token) {
+        Booking booking = findEntityForCheckin(id, token);
+        booking.setOnlineCheckinCompletedAt(Instant.now());
+        return toSummary(bookingRepository.save(booking));
     }
 
     public BookingSummary toSummary(Booking booking) {
@@ -368,7 +455,10 @@ public class BookingService implements BookingApi {
 
         return new BookingSummary(
                 booking.getId(),
+                booking.getPropertyId(),
                 booking.getGuestId(),
+                booking.getCompanyId(),
+                booking.getGroupId(),
                 booking.getStatus(),
                 booking.getSource(),
                 booking.getGuaranteeType(),
@@ -380,6 +470,8 @@ public class BookingService implements BookingApi {
                 booking.getTaxAmount(),
                 booking.getDiscountAmount(),
                 booking.getTotalAmount(),
-                rooms);
+                rooms,
+                booking.getCheckinToken(),
+                booking.getOnlineCheckinCompletedAt());
     }
 }

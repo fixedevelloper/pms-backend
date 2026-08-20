@@ -32,8 +32,19 @@ public class Booking extends BaseEntity {
     /** Jamais posé manuellement par le staff — uniquement par NightAuditService lors d'une clôture. */
     public static final String NO_SHOW = "no_show";
 
+    @Column(name = "property_id", nullable = false)
+    private Long propertyId;
+
     @Column(name = "guest_id", nullable = false)
     private Long guestId;
+
+    /** Société garante (guaranteeType = "company") — utilisée pour agréger la facturation mensuelle par entreprise. */
+    @Column(name = "company_id")
+    private Long companyId;
+
+    /** Groupe/allotement dont cette réservation fait partie, si applicable (voir com.pms.hotel.groupbooking). */
+    @Column(name = "group_id")
+    private Long groupId;
 
     @Column(name = "checked_in_at")
     private Instant checkedInAt;
@@ -73,6 +84,13 @@ public class Booking extends BaseEntity {
 
     @Column(name = "total_amount", nullable = false)
     private BigDecimal totalAmount;
+
+    /** Jeton opaque permettant au client d'accéder à son pré-enregistrement en ligne sans authentification (voir booking.internal.web.CheckinPublicController). */
+    @Column(name = "checkin_token", unique = true)
+    private String checkinToken;
+
+    @Column(name = "online_checkin_completed_at")
+    private Instant onlineCheckinCompletedAt;
 
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<BookingRoom> rooms = new LinkedHashSet<>();

@@ -4,6 +4,9 @@ import com.pms.hotel.shared.BaseEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
@@ -57,6 +60,16 @@ public class Invoice extends BaseEntity {
 
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InvoiceItem> items = new ArrayList<>();
+
+    /** Non-null une fois cette facture agrégée dans une facture société groupée (voir CompanyInvoice). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_invoice_id")
+    private CompanyInvoice companyInvoice;
+
+    /** Non-null une fois cette facture agrégée dans une facture de groupe (voir GroupInvoice). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_invoice_id")
+    private GroupInvoice groupInvoice;
 
     /** Recomputes {@code amountPaid}/{@code status} from the completed payments recorded against this invoice. */
     public void refreshStatus(BigDecimal totalPaidFromCompletedPayments) {
