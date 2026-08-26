@@ -27,8 +27,9 @@ public class GuestDocument extends BaseEntity {
     @Column(name = "content_type", nullable = false)
     private String contentType;
 
+    /** columnDefinition explicite : sans lui, Hibernate valide un byte[] @Lob contre TINYBLOB (trop petit pour une photo de pièce d'identité) alors que la migration crée bien un LONGBLOB. */
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "LONGBLOB")
     private byte[] data;
 
     public GuestDocumentInfo toInfo() {

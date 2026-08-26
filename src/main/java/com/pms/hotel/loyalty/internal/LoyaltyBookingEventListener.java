@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-class BookingEventListener {
+class LoyaltyBookingEventListener {
 
     private final LoyaltyService loyaltyService;
 
