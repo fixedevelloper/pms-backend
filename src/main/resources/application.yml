@@ -24,6 +24,17 @@ spring:
       max-file-size: 8MB
       max-request-size: 10MB
 
+  mail:
+    # Vide/injoignable par défaut : NotificationService#sendEmail encapsule déjà
+    # mailSender.send(...) dans un try/catch (échoue silencieusement, voir sa Javadoc)
+    # — mais sans host/port ici, Spring Boot ne crée AUCUN bean JavaMailSender du tout
+    # (MailSenderAutoConfiguration exige spring.mail.host), ce qui fait échouer tout le
+    # contexte Spring au démarrage (NotificationService en dépend directement).
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+
   jackson:
     default-property-inclusion: non_null
     # pms-frontend was built assuming a Laravel-style snake_case wire format
