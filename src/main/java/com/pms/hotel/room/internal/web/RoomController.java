@@ -68,6 +68,9 @@ class RoomController {
     public RoomTypeSummary updateType(@PathVariable Long id, @Valid @RequestBody UpdateRoomTypeRequest request) {
         RoomType roomType = roomTypeRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Type de chambre", id));
+        if (!roomType.getPropertyId().equals(currentProperty.resolve())) {
+            throw new BusinessRuleException("Ce type de chambre n'appartient pas à l'établissement courant.");
+        }
 
         if (request.name() != null) roomType.setName(request.name());
         if (request.description() != null) roomType.setDescription(request.description());
@@ -105,6 +108,7 @@ class RoomController {
     @PatchMapping("/rooms/{id}/status")
     @PreAuthorize("hasAuthority('manage housekeeping') or hasAuthority('manage rooms')")
     public RoomDetails updateStatus(@PathVariable Long id, @Valid @RequestBody UpdateRoomStatusRequest request) {
+        requireRoomInCurrentProperty(id);
         return roomService.updateStatusWithChecklist(
                 id, request.status(), currentUser.userId(), request.note(),
                 Boolean.TRUE.equals(request.linenChecked()),
@@ -119,6 +123,7 @@ class RoomController {
 
     @GetMapping("/rooms/{id}/blocks")
     public List<RoomBlockView> indexBlocks(@PathVariable Long id) {
+        requireRoomInCurrentProperty(id);
         return roomService.listBlocksForRoom(id);
     }
 
@@ -126,12 +131,20 @@ class RoomController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('manage rooms')")
     public RoomBlockView storeBlock(@PathVariable Long id, @Valid @RequestBody CreateRoomBlockRequest request) {
+        requireRoomInCurrentProperty(id);
         return roomService.createBlock(id, request.startDate(), request.endDate(), request.reason(), request.notes());
     }
 
     @DeleteMapping("/rooms/{id}/blocks/{blockId}")
     @PreAuthorize("hasAuthority('manage rooms')")
     public void releaseBlock(@PathVariable Long id, @PathVariable Long blockId) {
+        requireRoomInCurrentProperty(id);
         roomService.releaseBlock(id, blockId);
+    }
+
+    private void requireRoomInCurrentProperty(Long roomId) {
+        if (!roomApi.getById(roomId).propertyId().equals(currentProperty.resolve())) {
+            throw new BusinessRuleException("Cette chambre n'appartient pas à l'établissement courant.");
+        }
     }
 }

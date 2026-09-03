@@ -9,6 +9,8 @@ import com.pms.hotel.booking.internal.BookingService;
 import com.pms.hotel.booking.internal.web.BookingRequests.CreateBookingRequest;
 import com.pms.hotel.booking.internal.web.BookingRequests.UpdateReservationStatusRequest;
 import com.pms.hotel.property.CurrentProperty;
+import com.pms.hotel.shared.exception.BusinessRuleException;
+import com.pms.hotel.shared.exception.ResourceNotFoundException;
 import com.pms.hotel.shared.web.PageResponse;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -82,11 +84,20 @@ class BookingController {
 
     @GetMapping("/bookings/{id}")
     public BookingSummary show(@PathVariable Long id) {
-        return bookingService.toSummary(bookingService.findEntity(id));
+        Booking booking = bookingService.findEntity(id);
+        if (!booking.getPropertyId().equals(currentProperty.resolve())) {
+            throw new BusinessRuleException("Cette réservation n'appartient pas à l'établissement courant.");
+        }
+        return bookingService.toSummary(booking);
     }
 
     @PatchMapping("/reception/bookings/{id}/status")
     public BookingSummary updateReservationStatus(@PathVariable Long id, @Valid @RequestBody UpdateReservationStatusRequest request) {
+        Booking booking = bookingRepository.findById(id)
+                .orElseThrow(() -> ResourceNotFoundException.of("Réservation", id));
+        if (!booking.getPropertyId().equals(currentProperty.resolve())) {
+            throw new BusinessRuleException("Cette réservation n'appartient pas à l'établissement courant.");
+        }
         return bookingService.updateReservationStatus(id, request.status());
     }
 

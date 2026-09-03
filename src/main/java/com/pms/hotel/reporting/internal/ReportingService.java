@@ -48,20 +48,20 @@ public class ReportingService {
     private final RatePlanApi ratePlanApi;
     private final RateChangeAuditLogRepository rateChangeAuditLogRepository;
 
-    public DashboardStats dashboardStats() {
+    public DashboardStats dashboardStats(Long propertyId) {
         YearMonth month = YearMonth.now();
         var from = month.atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
         var to = month.atEndOfMonth().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
 
-        BigDecimal monthlyRevenue = bookingApi.sumRevenueForStatusCreatedBetween("confirmed", from, to);
+        BigDecimal monthlyRevenue = bookingApi.sumRevenueForStatusCreatedBetween(propertyId, "confirmed", from, to);
 
-        RoomOccupancyStats occupancy = roomApi.occupancyStats();
+        RoomOccupancyStats occupancy = roomApi.occupancyStats(propertyId);
         int occupancyRate = occupancy.totalRooms() > 0
                 ? Math.round(100f * occupancy.occupiedRooms() / occupancy.totalRooms())
                 : 0;
 
-        long activeBookings = bookingApi.countByStatus("checked_in");
-        BigDecimal activeRevenue = bookingApi.sumTotalAmountByStatus("checked_in");
+        long activeBookings = bookingApi.countByStatus(propertyId, "checked_in");
+        BigDecimal activeRevenue = bookingApi.sumTotalAmountByStatus(propertyId, "checked_in");
         BigDecimal adr = activeBookings > 0
                 ? activeRevenue.divide(BigDecimal.valueOf(activeBookings), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
@@ -70,13 +70,13 @@ public class ReportingService {
         return new DashboardStats(monthlyRevenue, occupancyRate, adr, revPar);
     }
 
-    public RevenueReport revenueReport(LocalDate start, LocalDate end) {
-        var data = bookingApi.revenueByCheckoutDateBetween(start, end);
+    public RevenueReport revenueReport(Long propertyId, LocalDate start, LocalDate end) {
+        var data = bookingApi.revenueByCheckoutDateBetween(propertyId, start, end);
         BigDecimal totalRevenue = data.stream().map(com.pms.hotel.booking.DailyRevenuePoint::revenue)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         long daysCount = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(start, end));
-        long totalRooms = roomApi.occupancyStats().totalRooms();
+        long totalRooms = roomApi.occupancyStats(propertyId).totalRooms();
         BigDecimal avgRevPar = totalRooms > 0
                 ? totalRevenue.divide(BigDecimal.valueOf(daysCount * totalRooms), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
@@ -96,8 +96,8 @@ public class ReportingService {
      * acceptable pour un parc hôtelier (dizaines/centaines de chambres), à
      * revoir si ça devient un goulot d'étranglement.
      */
-    public List<RoomOccupancyView> roomOccupancy() {
-        return roomApi.findAll().stream().map(this::toOccupancyView).toList();
+    public List<RoomOccupancyView> roomOccupancy(Long propertyId) {
+        return roomApi.findAllByProperty(propertyId).stream().map(this::toOccupancyView).toList();
     }
 
     private RoomOccupancyView toOccupancyView(RoomDetails room) {
@@ -123,9 +123,9 @@ public class ReportingService {
      * ici, juste un comptage. totalRooms vient d'occupancyStats() (exclut déjà
      * les chambres actuellement bloquées hors-vente).
      */
-    public List<OccupancyForecastPoint> occupancyForecast(LocalDate from, LocalDate to) {
-        List<RoomStayInterval> stays = bookingApi.findRoomStaysOverlapping(from, to);
-        long totalRooms = roomApi.occupancyStats().totalRooms();
+    public List<OccupancyForecastPoint> occupancyForecast(Long propertyId, LocalDate from, LocalDate to) {
+        List<RoomStayInterval> stays = bookingApi.findRoomStaysOverlapping(propertyId, from, to);
+        long totalRooms = roomApi.occupancyStats(propertyId).totalRooms();
 
         List<OccupancyForecastPoint> points = new ArrayList<>();
         for (LocalDate date = from; date.isBefore(to); date = date.plusDays(1)) {
@@ -152,9 +152,9 @@ public class ReportingService {
      * GuestSummary) et chaque accompagnant nommé (nom/passeport seulement,
      * faute de profil complet pour eux — voir RoomOccupant).
      */
-    public List<PoliceRegisterEntry> policeRegister(LocalDate date) {
+    public List<PoliceRegisterEntry> policeRegister(Long propertyId, LocalDate date) {
         List<PoliceRegisterEntry> entries = new ArrayList<>();
-        for (BookingSummary booking : bookingApi.findArrivalsOn(date)) {
+        for (BookingSummary booking : bookingApi.findArrivalsOn(propertyId, date)) {
             GuestSummary guest = guestApi.getById(booking.guestId());
             LocalDate arrival = booking.checkedInAt().atZone(ZoneOffset.UTC).toLocalDate();
             LocalDate departure = booking.checkedOutAt().atZone(ZoneOffset.UTC).toLocalDate();
@@ -179,8 +179,8 @@ public class ReportingService {
     }
 
     /** Chiffre d'affaires par canal/segment (direct, OTA, etc.) — pour identifier quel intermédiaire génère le plus de valeur. */
-    public ProductionByChannelReport productionByChannel(LocalDate start, LocalDate end) {
-        var bySource = bookingApi.revenueBySourceCheckedOutBetween(start, end);
+    public ProductionByChannelReport productionByChannel(Long propertyId, LocalDate start, LocalDate end) {
+        var bySource = bookingApi.revenueBySourceCheckedOutBetween(propertyId, start, end);
         BigDecimal total = bySource.stream()
                 .map(com.pms.hotel.booking.SourceRevenuePoint::revenue)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -193,14 +193,16 @@ public class ReportingService {
      * RateChangeAuditLog et RoomStatusLog, déjà persistés à chaque
      * changement, simplement jamais exposés en un seul rapport jusqu'ici).
      */
-    public AuditTrailReport auditTrail(Instant from, Instant to) {
-        List<RateChangeEntry> rateChanges = rateChangeAuditLogRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(from, to).stream()
+    public AuditTrailReport auditTrail(Long propertyId, Instant from, Instant to) {
+        List<Long> propertyRoomTypeIds = roomApi.findRoomTypeIdsByProperty(propertyId);
+        List<RateChangeEntry> rateChanges = rateChangeAuditLogRepository
+                .findByRoomTypeIdInAndCreatedAtBetweenOrderByCreatedAtDesc(propertyRoomTypeIds, from, to).stream()
                 .map(log -> new RateChangeEntry(
                         log.getRatePlanId(), ratePlanApi.getById(log.getRatePlanId()).name(), log.getRoomTypeId(),
                         log.getNewPrice(), log.getChangedByUserId(), log.getCreatedAt()))
                 .toList();
 
-        List<RoomStatusChangeEntry> roomStatusChanges = roomApi.statusChangesBetween(from, to).stream()
+        List<RoomStatusChangeEntry> roomStatusChanges = roomApi.statusChangesBetween(propertyId, from, to).stream()
                 .map(entry -> new RoomStatusChangeEntry(
                         entry.roomId(), entry.roomNumber(), entry.status(), entry.note(), entry.updatedByUserId(), entry.changedAt()))
                 .toList();

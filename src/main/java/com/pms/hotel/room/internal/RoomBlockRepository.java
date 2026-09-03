@@ -20,6 +20,12 @@ public interface RoomBlockRepository extends JpaRepository<RoomBlock, Long> {
     @Query("select distinct rb.room.id from RoomBlock rb where rb.startDate <= :date and rb.endDate > :date")
     List<Long> findBlockedRoomIds(@Param("date") LocalDate date);
 
+    @Query("""
+            select distinct rb.room.id from RoomBlock rb join rb.room r join r.roomType rt
+            where rt.propertyId = :propertyId and rb.startDate <= :date and rb.endDate > :date
+            """)
+    List<Long> findBlockedRoomIdsByProperty(@Param("propertyId") Long propertyId, @Param("date") LocalDate date);
+
     List<RoomBlock> findByRoomIdOrderByStartDateDesc(Long roomId);
 
     @Query("select rb from RoomBlock rb join rb.room r join r.roomType rt where rt.propertyId = :propertyId order by rb.startDate desc")

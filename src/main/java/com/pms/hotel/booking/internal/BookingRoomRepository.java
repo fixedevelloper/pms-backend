@@ -37,4 +37,14 @@ public interface BookingRoomRepository extends JpaRepository<BookingRoom, Long> 
                 and br.booking.checkedOutAt > :from
             """)
     List<BookingRoom> findOverlapping(@Param("from") Instant from, @Param("to") Instant to);
+
+    /** Comme {@link #findOverlapping(Instant, Instant)}, restreint à un établissement. */
+    @Query("""
+            select br from BookingRoom br
+            where br.booking.propertyId = :propertyId
+                and br.booking.status not in ('cancelled', 'no_show')
+                and br.booking.checkedInAt < :to
+                and br.booking.checkedOutAt > :from
+            """)
+    List<BookingRoom> findOverlapping(@Param("propertyId") Long propertyId, @Param("from") Instant from, @Param("to") Instant to);
 }

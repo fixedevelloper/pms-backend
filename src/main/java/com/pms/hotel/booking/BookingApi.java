@@ -30,17 +30,35 @@ public interface BookingApi {
 
     long countByStatus(String status);
 
+    /** Comme {@link #countByStatus(String)}, restreint à un établissement — utilisé par le reporting property-scopé. */
+    long countByStatus(Long propertyId, String status);
+
     BigDecimal sumTotalAmountByStatus(String status);
+
+    /** Comme {@link #sumTotalAmountByStatus(String)}, restreint à un établissement. */
+    BigDecimal sumTotalAmountByStatus(Long propertyId, String status);
 
     BigDecimal sumRevenueForStatusCreatedBetween(String status, Instant from, Instant to);
 
+    /** Comme {@link #sumRevenueForStatusCreatedBetween(String, Instant, Instant)}, restreint à un établissement. */
+    BigDecimal sumRevenueForStatusCreatedBetween(Long propertyId, String status, Instant from, Instant to);
+
     List<DailyRevenuePoint> revenueByCheckoutDateBetween(LocalDate start, LocalDate end);
+
+    /** Comme {@link #revenueByCheckoutDateBetween(LocalDate, LocalDate)}, restreint à un établissement. */
+    List<DailyRevenuePoint> revenueByCheckoutDateBetween(Long propertyId, LocalDate start, LocalDate end);
 
     /** Réservations dont l'arrivée (checkedInAt) tombe le {@code date} donné — utilisé par le registre de police/immigration. */
     List<BookingSummary> findArrivalsOn(LocalDate date);
 
+    /** Comme {@link #findArrivalsOn(LocalDate)}, restreint à un établissement. */
+    List<BookingSummary> findArrivalsOn(Long propertyId, LocalDate date);
+
     /** Séjours actifs (hors annulés/no-show) chevauchant [from, to) — utilisé par la prévision d'occupation. */
     List<RoomStayInterval> findRoomStaysOverlapping(LocalDate from, LocalDate to);
+
+    /** Comme {@link #findRoomStaysOverlapping(LocalDate, LocalDate)}, restreint à un établissement. */
+    List<RoomStayInterval> findRoomStaysOverlapping(Long propertyId, LocalDate from, LocalDate to);
 
     /** Réservations attendues le {@code onOrBeforeDate} (ou avant) qui n'ont jamais été enregistrées — utilisé par le night audit. */
     List<BookingSummary> findNoShowCandidates(LocalDate onOrBeforeDate);
@@ -53,6 +71,9 @@ public interface BookingApi {
 
     /** Chiffre d'affaires groupé par canal/segment (Booking#source) sur les sorties de la période — rapport de production par canal. */
     List<SourceRevenuePoint> revenueBySourceCheckedOutBetween(LocalDate start, LocalDate end);
+
+    /** Comme {@link #revenueBySourceCheckedOutBetween(LocalDate, LocalDate)}, restreint à un établissement. */
+    List<SourceRevenuePoint> revenueBySourceCheckedOutBetween(Long propertyId, LocalDate start, LocalDate end);
 
     /** Réservations individuelles d'un groupe/allotement — la "rooming list" (voir com.pms.hotel.groupbooking). */
     List<BookingSummary> findByGroupId(Long groupId);

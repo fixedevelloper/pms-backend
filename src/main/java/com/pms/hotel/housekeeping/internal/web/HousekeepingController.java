@@ -14,8 +14,10 @@ import com.pms.hotel.housekeeping.internal.web.HousekeepingRequests.UpdateLostFo
 import com.pms.hotel.housekeeping.internal.web.HousekeepingRequests.UpdateTaskPriorityRequest;
 import com.pms.hotel.housekeeping.internal.web.HousekeepingRequests.UpdateTaskStatusRequest;
 import com.pms.hotel.property.CurrentProperty;
+import com.pms.hotel.housekeeping.internal.LostFoundItemRepository;
 import com.pms.hotel.room.RoomApi;
 import com.pms.hotel.shared.exception.BusinessRuleException;
+import com.pms.hotel.shared.exception.ResourceNotFoundException;
 import com.pms.hotel.shared.security.CurrentUser;
 import com.pms.hotel.shared.web.PageResponse;
 import jakarta.validation.Valid;
@@ -41,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 class HousekeepingController {
 
     private final HousekeepingTaskRepository taskRepository;
+    private final LostFoundItemRepository lostFoundItemRepository;
     private final HousekeepingService housekeepingService;
     private final RoomApi roomApi;
     private final CurrentUser currentUser;
@@ -83,12 +86,14 @@ class HousekeepingController {
 
     @PatchMapping("/tasks/{id}/status")
     public HousekeepingTaskView updateTaskStatus(@PathVariable Long id, @Valid @RequestBody UpdateTaskStatusRequest request) {
+        requireTaskInCurrentProperty(id);
         HousekeepingTask task = housekeepingService.updateStatus(id, request.status(), currentUser.userId());
         return toView(task);
     }
 
     @PatchMapping("/tasks/{id}/priority")
     public HousekeepingTaskView updateTaskPriority(@PathVariable Long id, @Valid @RequestBody UpdateTaskPriorityRequest request) {
+        requireTaskInCurrentProperty(id);
         HousekeepingTask task = housekeepingService.updatePriority(id, request.priority());
         return toView(task);
     }
@@ -108,6 +113,7 @@ class HousekeepingController {
 
     @GetMapping("/rooms/{roomId}/minibar/consumptions")
     public List<MinibarConsumptionView> minibarConsumptions(@PathVariable Long roomId) {
+        requireRoomInCurrentProperty(roomId);
         return housekeepingService.minibarConsumptionForRoom(roomId).stream().map(c -> toView(roomId, c)).toList();
     }
 
@@ -115,6 +121,7 @@ class HousekeepingController {
     @ResponseStatus(HttpStatus.CREATED)
     public MinibarConsumptionView recordMinibarConsumption(
             @PathVariable Long roomId, @Valid @RequestBody RecordMinibarConsumptionRequest request) {
+        requireRoomInCurrentProperty(roomId);
         MinibarConsumption consumption = housekeepingService.recordMinibarConsumption(
                 roomId, request.minibarItemId(), request.quantity(), currentUser.userId());
         return toView(roomId, consumption);
@@ -136,7 +143,26 @@ class HousekeepingController {
 
     @PatchMapping("/lost-found/{id}/status")
     public LostFoundItem updateLostFoundStatus(@PathVariable Long id, @Valid @RequestBody UpdateLostFoundStatusRequest request) {
+        LostFoundItem item = lostFoundItemRepository.findById(id)
+                .orElseThrow(() -> ResourceNotFoundException.of("Objet trouvé", id));
+        if (!roomApi.findRoomIdsByProperty(currentProperty.resolve()).contains(item.getRoomId())) {
+            throw new BusinessRuleException("Cet objet trouvé n'appartient pas à l'établissement courant.");
+        }
         return housekeepingService.updateLostFoundStatus(id, request.status(), request.claimantName());
+    }
+
+    private void requireTaskInCurrentProperty(Long taskId) {
+        HousekeepingTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Tâche", taskId));
+        if (!roomApi.findRoomIdsByProperty(currentProperty.resolve()).contains(task.getRoomId())) {
+            throw new BusinessRuleException("Cette tâche n'appartient pas à l'établissement courant.");
+        }
+    }
+
+    private void requireRoomInCurrentProperty(Long roomId) {
+        if (!roomApi.findRoomIdsByProperty(currentProperty.resolve()).contains(roomId)) {
+            throw new BusinessRuleException("Cette chambre n'appartient pas à l'établissement courant.");
+        }
     }
 
     private MinibarConsumptionView toView(Long roomId, MinibarConsumption consumption) {

@@ -52,6 +52,7 @@ class MaintenanceController {
     @PreAuthorize("hasAuthority('manage housekeeping') or hasAuthority('manage rooms')")
     public MaintenanceTicketView update(@PathVariable Long id, @Valid @RequestBody UpdateTicketRequest request) {
         return maintenanceService.update(
+                roomApi.findRoomIdsByProperty(currentProperty.resolve()),
                 id, request.title(), request.description(), request.priority(),
                 request.status(), request.assignedTo(), request.cost());
     }

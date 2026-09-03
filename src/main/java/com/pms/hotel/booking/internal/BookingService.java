@@ -238,8 +238,22 @@ public class BookingService implements BookingApi {
 
     @Override
     @Transactional(readOnly = true)
+    public List<com.pms.hotel.booking.SourceRevenuePoint> revenueBySourceCheckedOutBetween(Long propertyId, LocalDate start, LocalDate end) {
+        return bookingRepository.revenueBySourceCheckedOutBetween(propertyId, start, end).stream()
+                .map(row -> new com.pms.hotel.booking.SourceRevenuePoint((String) row[0], (Long) row[1], (BigDecimal) row[2]))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<BookingSummary> findArrivalsOn(LocalDate date) {
         return bookingRepository.findArrivals(date).stream().map(this::toSummary).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingSummary> findArrivalsOn(Long propertyId, LocalDate date) {
+        return bookingRepository.findArrivals(propertyId, date).stream().map(this::toSummary).toList();
     }
 
     @Override
@@ -248,6 +262,16 @@ public class BookingService implements BookingApi {
         Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant toInstant = to.atStartOfDay(ZoneOffset.UTC).toInstant();
         return bookingRoomRepository.findOverlapping(fromInstant, toInstant).stream()
+                .map(br -> new RoomStayInterval(br.getRoomId(), br.getBooking().getCheckedInAt(), br.getBooking().getCheckedOutAt()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomStayInterval> findRoomStaysOverlapping(Long propertyId, LocalDate from, LocalDate to) {
+        Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant toInstant = to.atStartOfDay(ZoneOffset.UTC).toInstant();
+        return bookingRoomRepository.findOverlapping(propertyId, fromInstant, toInstant).stream()
                 .map(br -> new RoomStayInterval(br.getRoomId(), br.getBooking().getCheckedInAt(), br.getBooking().getCheckedOutAt()))
                 .toList();
     }
@@ -373,8 +397,20 @@ public class BookingService implements BookingApi {
 
     @Override
     @Transactional(readOnly = true)
+    public long countByStatus(Long propertyId, String status) {
+        return bookingRepository.countByPropertyIdAndStatus(propertyId, status);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public BigDecimal sumTotalAmountByStatus(String status) {
         return bookingRepository.sumTotalAmountByStatus(status);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BigDecimal sumTotalAmountByStatus(Long propertyId, String status) {
+        return bookingRepository.sumTotalAmountByPropertyIdAndStatus(propertyId, status);
     }
 
     @Override
@@ -385,8 +421,22 @@ public class BookingService implements BookingApi {
 
     @Override
     @Transactional(readOnly = true)
+    public BigDecimal sumRevenueForStatusCreatedBetween(Long propertyId, String status, java.time.Instant from, java.time.Instant to) {
+        return bookingRepository.sumRevenueForStatusCreatedBetween(propertyId, status, from, to);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<DailyRevenuePoint> revenueByCheckoutDateBetween(LocalDate start, LocalDate end) {
         return bookingRepository.revenueByCheckoutDateBetween(start, end).stream()
+                .map(row -> new DailyRevenuePoint((LocalDate) row[0], (BigDecimal) row[1]))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DailyRevenuePoint> revenueByCheckoutDateBetween(Long propertyId, LocalDate start, LocalDate end) {
+        return bookingRepository.revenueByCheckoutDateBetween(propertyId, start, end).stream()
                 .map(row -> new DailyRevenuePoint((LocalDate) row[0], (BigDecimal) row[1]))
                 .toList();
     }

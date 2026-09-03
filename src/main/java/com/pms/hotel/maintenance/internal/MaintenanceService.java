@@ -55,8 +55,11 @@ public class MaintenanceService {
         return ticketRepository.save(ticket).toView(roomNumber);
     }
 
-    public MaintenanceTicketView update(Long id, String title, String description, String priority, String status, Long assignedTo, BigDecimal cost) {
+    public MaintenanceTicketView update(List<Long> propertyRoomIds, Long id, String title, String description, String priority, String status, Long assignedTo, BigDecimal cost) {
         MaintenanceTicket ticket = findEntity(id);
+        if (!propertyRoomIds.contains(ticket.getRoomId())) {
+            throw new BusinessRuleException("Ce ticket n'appartient pas à l'établissement courant.");
+        }
 
         if (title != null) ticket.setTitle(title);
         if (description != null) ticket.setDescription(description);

@@ -20,6 +20,16 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 
     long countByStatusAndIdNotIn(String status, Collection<Long> ids);
 
+    @Query("select count(r) from Room r where r.roomType.propertyId = :propertyId")
+    long countByPropertyId(@Param("propertyId") Long propertyId);
+
+    @Query("select count(r) from Room r where r.status = :status and r.roomType.propertyId = :propertyId")
+    long countByStatusAndPropertyId(@Param("status") String status, @Param("propertyId") Long propertyId);
+
+    @Query("select count(r) from Room r where r.status = :status and r.id not in :ids and r.roomType.propertyId = :propertyId")
+    long countByStatusAndIdNotInAndPropertyId(
+            @Param("status") String status, @Param("ids") Collection<Long> ids, @Param("propertyId") Long propertyId);
+
     /**
      * {@code roomType} is {@code FetchType.LAZY} (see {@link Room}) — RoomController#index maps
      * each row straight to {@code Room::toSummary} (which reads {@code roomType.getName()}/

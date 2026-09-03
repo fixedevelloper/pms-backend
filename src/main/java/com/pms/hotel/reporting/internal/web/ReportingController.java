@@ -1,5 +1,6 @@
 package com.pms.hotel.reporting.internal.web;
 
+import com.pms.hotel.property.CurrentProperty;
 import com.pms.hotel.reporting.internal.ReportingService;
 import com.pms.hotel.reporting.internal.ReportingViews.AuditTrailReport;
 import com.pms.hotel.reporting.internal.ReportingViews.DashboardStats;
@@ -24,10 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 class ReportingController {
 
     private final ReportingService reportingService;
+    private final CurrentProperty currentProperty;
 
     @GetMapping("/admin/dashboard-stats")
     public DashboardStats dashboardStats() {
-        return reportingService.dashboardStats();
+        return reportingService.dashboardStats(currentProperty.resolve());
     }
 
     @GetMapping("/reports/revenue")
@@ -36,26 +38,26 @@ class ReportingController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
         LocalDate resolvedEnd = end != null ? end : LocalDate.now();
         LocalDate resolvedStart = start != null ? start : resolvedEnd.minusDays(30);
-        return reportingService.revenueReport(resolvedStart, resolvedEnd);
+        return reportingService.revenueReport(currentProperty.resolve(), resolvedStart, resolvedEnd);
     }
 
     // URL inchangée (le frontend l'appelle déjà ainsi) — seul l'emplacement du
     // controller a bougé, de room vers reporting, pour casser un cycle de modules.
     @GetMapping("/rooms/occupancy")
     public List<RoomOccupancyView> roomOccupancy() {
-        return reportingService.roomOccupancy();
+        return reportingService.roomOccupancy(currentProperty.resolve());
     }
 
     @GetMapping("/reports/police-register")
     public List<PoliceRegisterEntry> policeRegister(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return reportingService.policeRegister(date != null ? date : LocalDate.now());
+        return reportingService.policeRegister(currentProperty.resolve(), date != null ? date : LocalDate.now());
     }
 
     @GetMapping("/reports/occupancy-forecast")
     public List<OccupancyForecastPoint> occupancyForecast(@RequestParam(defaultValue = "30") int days) {
         LocalDate today = LocalDate.now();
-        return reportingService.occupancyForecast(today, today.plusDays(Math.max(1, days)));
+        return reportingService.occupancyForecast(currentProperty.resolve(), today, today.plusDays(Math.max(1, days)));
     }
 
     @GetMapping("/reports/production-by-channel")
@@ -64,7 +66,7 @@ class ReportingController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
         LocalDate resolvedEnd = end != null ? end : LocalDate.now();
         LocalDate resolvedStart = start != null ? start : resolvedEnd.minusDays(30);
-        return reportingService.productionByChannel(resolvedStart, resolvedEnd);
+        return reportingService.productionByChannel(currentProperty.resolve(), resolvedStart, resolvedEnd);
     }
 
     @GetMapping("/reports/audit-trail")
@@ -75,6 +77,6 @@ class ReportingController {
         LocalDate resolvedStart = start != null ? start : resolvedEnd.minusDays(30);
         Instant from = resolvedStart.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant to = resolvedEnd.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
-        return reportingService.auditTrail(from, to);
+        return reportingService.auditTrail(currentProperty.resolve(), from, to);
     }
 }

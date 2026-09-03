@@ -28,18 +28,23 @@ public class RatePlanService implements RatePlanApi {
         return findEntity(ratePlanId).toSummary();
     }
 
+    /** {@code propertyRoomTypeIds} : types de chambre de l'établissement courant (voir RoomApi#findRoomTypeIdsByProperty) — {@code roomTypeId}, s'il est fourni, doit en faire partie (vérifié par l'appelant). */
     @Transactional(readOnly = true)
-    public List<RatePlanSummary> list(Long roomTypeId) {
+    public List<RatePlanSummary> list(List<Long> propertyRoomTypeIds, Long roomTypeId) {
         List<RatePlan> plans = roomTypeId != null
                 ? ratePlanRepository.findByRoomTypeIdOrderByName(roomTypeId)
-                : ratePlanRepository.findAllByOrderByRoomTypeIdAscNameAsc();
+                : ratePlanRepository.findByRoomTypeIdInOrderByRoomTypeIdAscNameAsc(propertyRoomTypeIds);
         return plans.stream().map(RatePlan::toSummary).toList();
     }
 
+    /** Tarifs actifs d'un type de chambre donné, sans filtrage par propriété — réservé au Booking Engine public (RatePlanApi), qui résout déjà son propertyId autrement (voir sa Javadoc). */
     @Override
     @Transactional(readOnly = true)
     public List<RatePlanSummary> listActive(Long roomTypeId) {
-        return list(roomTypeId).stream().filter(RatePlanSummary::active).toList();
+        return ratePlanRepository.findByRoomTypeIdOrderByName(roomTypeId).stream()
+                .map(RatePlan::toSummary)
+                .filter(RatePlanSummary::active)
+                .toList();
     }
 
     public RatePlanSummary create(CreateRatePlanRequest request) {

@@ -6,6 +6,8 @@ import com.pms.hotel.channelmanager.internal.ChannelManagerService;
 import com.pms.hotel.channelmanager.internal.web.ChannelRequests.CreateChannelRequest;
 import com.pms.hotel.channelmanager.internal.web.ChannelRequests.CreateMappingRequest;
 import com.pms.hotel.channelmanager.internal.web.ChannelRequests.UpdateChannelRequest;
+import com.pms.hotel.property.CurrentProperty;
+import com.pms.hotel.room.RoomApi;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,8 @@ import org.springframework.web.bind.annotation.RestController;
 class ChannelController {
 
     private final ChannelManagerService channelManagerService;
+    private final RoomApi roomApi;
+    private final CurrentProperty currentProperty;
 
     @GetMapping
     public List<ChannelSummary> index() {
@@ -61,19 +65,20 @@ class ChannelController {
 
     @GetMapping("/{id}/mappings")
     public List<ChannelRoomMappingView> indexMappings(@PathVariable Long id) {
-        return channelManagerService.listMappings(id);
+        return channelManagerService.listMappings(roomApi.findRoomIdsByProperty(currentProperty.resolve()), id);
     }
 
     @PostMapping("/{id}/mappings")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('manage rooms')")
     public ChannelRoomMappingView storeMapping(@PathVariable Long id, @Valid @RequestBody CreateMappingRequest request) {
-        return channelManagerService.createMapping(id, request.roomId(), request.externalRoomId());
+        return channelManagerService.createMapping(
+                roomApi.findRoomIdsByProperty(currentProperty.resolve()), id, request.roomId(), request.externalRoomId());
     }
 
     @DeleteMapping("/{id}/mappings/{mappingId}")
     @PreAuthorize("hasAuthority('manage rooms')")
     public void deleteMapping(@PathVariable Long id, @PathVariable Long mappingId) {
-        channelManagerService.deleteMapping(id, mappingId);
+        channelManagerService.deleteMapping(roomApi.findRoomIdsByProperty(currentProperty.resolve()), id, mappingId);
     }
 }

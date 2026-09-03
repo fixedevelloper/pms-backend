@@ -31,14 +31,26 @@ public interface RoomApi {
 
     RoomOccupancyStats occupancyStats();
 
+    /** Comme {@link #occupancyStats()}, restreint à un établissement — utilisé par le reporting property-scopé. */
+    RoomOccupancyStats occupancyStats(Long propertyId);
+
     /** True si la chambre a un blocage hors-vente (maintenance/rénovation/usage interne) chevauchant [checkIn, checkOut). */
     boolean isBlocked(Long roomId, LocalDate checkIn, LocalDate checkOut);
 
     /** Historique des changements de statut sur [from, to) — utilisé par le journal d'audit du reporting. */
     List<RoomStatusLogEntry> statusChangesBetween(Instant from, Instant to);
 
+    /** Comme {@link #statusChangesBetween(Instant, Instant)}, restreint à un établissement. */
+    List<RoomStatusLogEntry> statusChangesBetween(Long propertyId, Instant from, Instant to);
+
     /** Ids des chambres d'un établissement — utilisé pour cloisonner les listes housekeeping/maintenance par propriété (modules sans relation JPA directe vers Room). */
     List<Long> findRoomIdsByProperty(Long propertyId);
+
+    /** Ids des types de chambre d'un établissement — utilisé pour cloisonner rate-plans par propriété (RatePlan n'a pas de propertyId direct, seulement via son type de chambre). */
+    List<Long> findRoomTypeIdsByProperty(Long propertyId);
+
+    /** Comme {@link #findAll()}, restreint à un établissement — utilisé par le reporting property-scopé (grille d'occupation). */
+    List<RoomDetails> findAllByProperty(Long propertyId);
 
     RoomTypeSummary getRoomTypeById(Long roomTypeId);
 }

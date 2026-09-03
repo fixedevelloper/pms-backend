@@ -84,14 +84,19 @@ public class ChannelManagerService {
         channelRepository.delete(findChannel(id));
     }
 
+    /** {@code propertyRoomIds} : chambres de l'établissement courant (voir RoomApi#findRoomIdsByProperty) — un canal n'a pas de propertyId direct (voir Channel), donc le cloisonnement passe ici par la chambre mappée. */
     @Transactional(readOnly = true)
-    public List<ChannelRoomMappingView> listMappings(Long channelId) {
+    public List<ChannelRoomMappingView> listMappings(List<Long> propertyRoomIds, Long channelId) {
         return mappingRepository.findByChannelId(channelId).stream()
+                .filter(m -> propertyRoomIds.contains(m.getRoomId()))
                 .map(m -> m.toView(roomApi.getById(m.getRoomId()).roomNumber()))
                 .toList();
     }
 
-    public ChannelRoomMappingView createMapping(Long channelId, Long roomId, String externalRoomId) {
+    public ChannelRoomMappingView createMapping(List<Long> propertyRoomIds, Long channelId, Long roomId, String externalRoomId) {
+        if (!propertyRoomIds.contains(roomId)) {
+            throw new BusinessRuleException("Cette chambre n'appartient pas à l'établissement courant.");
+        }
         if (mappingRepository.existsByChannelIdAndRoomId(channelId, roomId)) {
             throw new BusinessRuleException("Cette chambre est déjà mappée sur ce canal.");
         }
@@ -104,11 +109,14 @@ public class ChannelManagerService {
         return mappingRepository.save(mapping).toView(roomNumber);
     }
 
-    public void deleteMapping(Long channelId, Long mappingId) {
+    public void deleteMapping(List<Long> propertyRoomIds, Long channelId, Long mappingId) {
         ChannelRoomMapping mapping = mappingRepository.findById(mappingId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Mapping", mappingId));
         if (!mapping.getChannel().getId().equals(channelId)) {
             throw new ResourceNotFoundException("Ce mapping n'appartient pas au canal indiqué.");
+        }
+        if (!propertyRoomIds.contains(mapping.getRoomId())) {
+            throw new BusinessRuleException("Cette chambre n'appartient pas à l'établissement courant.");
         }
         mappingRepository.delete(mapping);
     }

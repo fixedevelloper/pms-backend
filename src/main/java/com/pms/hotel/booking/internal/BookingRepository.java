@@ -39,6 +39,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("""
             select b from Booking b
+            where b.propertyId = :propertyId
+                and cast(b.checkedInAt as date) = :date
+                and b.status in ('pending', 'confirmed', 'checked_in')
+            """)
+    List<Booking> findArrivals(@Param("propertyId") Long propertyId, @Param("date") java.time.LocalDate date);
+
+    @Query("""
+            select b from Booking b
             where cast(b.checkedOutAt as date) = :date
                 and b.status in ('confirmed', 'checked_in', 'checked_out')
             """)
@@ -89,10 +97,28 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Object[]> revenueBySourceCheckedOutBetween(
             @Param("start") java.time.LocalDate start, @Param("end") java.time.LocalDate end);
 
+    /** Comme {@link #revenueBySourceCheckedOutBetween(java.time.LocalDate, java.time.LocalDate)}, restreint à un établissement. */
+    @Query("""
+            select b.source as source, count(b) as bookingsCount, coalesce(sum(b.totalAmount), 0) as revenue
+            from Booking b
+            where b.propertyId = :propertyId
+                and b.status = 'checked_out'
+                and cast(b.checkedOutAt as date) between :start and :end
+            group by b.source
+            order by revenue desc
+            """)
+    List<Object[]> revenueBySourceCheckedOutBetween(
+            @Param("propertyId") Long propertyId, @Param("start") java.time.LocalDate start, @Param("end") java.time.LocalDate end);
+
     long countByStatus(String status);
+
+    long countByPropertyIdAndStatus(Long propertyId, String status);
 
     @Query("select coalesce(sum(b.totalAmount), 0) from Booking b where b.status = :status")
     java.math.BigDecimal sumTotalAmountByStatus(@Param("status") String status);
+
+    @Query("select coalesce(sum(b.totalAmount), 0) from Booking b where b.propertyId = :propertyId and b.status = :status")
+    java.math.BigDecimal sumTotalAmountByPropertyIdAndStatus(@Param("propertyId") Long propertyId, @Param("status") String status);
 
     @Query("""
             select coalesce(sum(b.totalAmount), 0) from Booking b
@@ -100,6 +126,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             """)
     java.math.BigDecimal sumRevenueForStatusCreatedBetween(
             @Param("status") String status, @Param("from") Instant from, @Param("to") Instant to);
+
+    /** Comme {@link #sumRevenueForStatusCreatedBetween(String, Instant, Instant)}, restreint à un établissement. */
+    @Query("""
+            select coalesce(sum(b.totalAmount), 0) from Booking b
+            where b.propertyId = :propertyId and b.status = :status and b.createdAt >= :from and b.createdAt < :to
+            """)
+    java.math.BigDecimal sumRevenueForStatusCreatedBetween(
+            @Param("propertyId") Long propertyId, @Param("status") String status, @Param("from") Instant from, @Param("to") Instant to);
 
     @Query("""
             select cast(b.checkedOutAt as date) as day, sum(b.totalAmount - b.discountAmount + b.taxAmount) as revenue
@@ -111,6 +145,19 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             """)
     List<Object[]> revenueByCheckoutDateBetween(
             @Param("start") java.time.LocalDate start, @Param("end") java.time.LocalDate end);
+
+    /** Comme {@link #revenueByCheckoutDateBetween(java.time.LocalDate, java.time.LocalDate)}, restreint à un établissement. */
+    @Query("""
+            select cast(b.checkedOutAt as date) as day, sum(b.totalAmount - b.discountAmount + b.taxAmount) as revenue
+            from Booking b
+            where b.propertyId = :propertyId
+                and b.status = 'checked_out'
+                and cast(b.checkedOutAt as date) between :start and :end
+            group by cast(b.checkedOutAt as date)
+            order by cast(b.checkedOutAt as date) asc
+            """)
+    List<Object[]> revenueByCheckoutDateBetween(
+            @Param("propertyId") Long propertyId, @Param("start") java.time.LocalDate start, @Param("end") java.time.LocalDate end);
     // Charger b.rooms et rooms.occupants dans la même requête
     @EntityGraph(attributePaths = {"rooms", "rooms.occupants"})
     Optional<Booking> findWithDetailsById(Long id);

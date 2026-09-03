@@ -105,6 +105,18 @@ public class RoomService implements RoomApi {
 
     @Override
     @Transactional(readOnly = true)
+    public RoomOccupancyStats occupancyStats(Long propertyId) {
+        List<Long> blockedRoomIds = roomBlockRepository.findBlockedRoomIdsByProperty(propertyId, LocalDate.now());
+        long total = roomRepository.countByPropertyId(propertyId) - blockedRoomIds.size();
+        long occupied = roomRepository.countByStatusAndPropertyId(RoomStatuses.OCCUPIED, propertyId);
+        long available = blockedRoomIds.isEmpty()
+                ? roomRepository.countByStatusAndPropertyId(RoomStatuses.AVAILABLE, propertyId)
+                : roomRepository.countByStatusAndIdNotInAndPropertyId(RoomStatuses.AVAILABLE, blockedRoomIds, propertyId);
+        return new RoomOccupancyStats(total, occupied, available);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean isBlocked(Long roomId, LocalDate checkIn, LocalDate checkOut) {
         return roomBlockRepository.existsOverlap(roomId, checkIn, checkOut);
     }
@@ -113,6 +125,18 @@ public class RoomService implements RoomApi {
     @Transactional(readOnly = true)
     public List<Long> findRoomIdsByProperty(Long propertyId) {
         return roomRepository.findIdsByPropertyId(propertyId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> findRoomTypeIdsByProperty(Long propertyId) {
+        return roomTypeRepository.findByPropertyId(propertyId, Sort.unsorted()).stream().map(RoomType::getId).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomDetails> findAllByProperty(Long propertyId) {
+        return roomRepository.findByPropertyId(propertyId, Sort.by("roomNumber")).stream().map(Room::toSummary).toList();
     }
 
     @Override
@@ -127,6 +151,16 @@ public class RoomService implements RoomApi {
     @Transactional(readOnly = true)
     public List<RoomStatusLogEntry> statusChangesBetween(Instant from, Instant to) {
         return roomStatusLogRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(from, to).stream()
+                .map(log -> new RoomStatusLogEntry(
+                        log.getRoom().getId(), log.getRoom().getRoomNumber(), log.getStatus(),
+                        log.getNote(), log.getUpdatedBy(), log.getCreatedAt()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomStatusLogEntry> statusChangesBetween(Long propertyId, Instant from, Instant to) {
+        return roomStatusLogRepository.findByPropertyIdAndCreatedAtBetweenOrderByCreatedAtDesc(propertyId, from, to).stream()
                 .map(log -> new RoomStatusLogEntry(
                         log.getRoom().getId(), log.getRoom().getRoomNumber(), log.getStatus(),
                         log.getNote(), log.getUpdatedBy(), log.getCreatedAt()))
